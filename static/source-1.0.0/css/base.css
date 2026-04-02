@@ -1,0 +1,289 @@
+
+html{height: 100%;}
+.container-fluid {
+    background-size: 100% 100%;
+    background-attachment: fixed;
+}
+body{background-color: #F1F1F1; height: 100%;}
+.navbar{background-color: rgb(0 123 255 / 32%); margin-bottom:2px; border-color: #043573;}
+.navbar-light .navbar-nav .nav-link{color: black;}
+.card-body {width: 100% }
+.card-header {background-color: #73040421;}
+.canvasChart{max-width: 100%;}
+.canvasRing{max-width: 100%;}
+.tableSelected{background-color: #FFD480 !important; color:black !important;}
+.bigIcon{font-size: 120px;color: #043573}
+.formErrorMsg{font-size: 10px; color: red;}
+.bigInput{resize: none;}
+.indicator-square{max-width: 100%; 
+    max-height: 100%; 
+    background-color: white;
+    border-radius: 15%; 
+    width: 50px; 
+    height: 25px; 
+    border-color: blanchedalmond;}
+.carousel-indicators li {width: 100px;height: 10px;border-radius: 10%;}
+.carousel-indicators {bottom: -50px;}
+.carousel-control-prev,
+.carousel-control-next {height: 300px; width: 20px;}
+select.form-control {-moz-appearance: none;-webkit-appearance: none;appearance: none;}
+@keyframes fa-blink {
+    0% { opacity: 1; }
+    50% { opacity: 0.5; }
+    100% { opacity: 0; }
+}
+.fa-blink {
+  -webkit-animation: fa-blink .75s linear infinite;
+  -moz-animation: fa-blink .75s linear infinite;
+  -ms-animation: fa-blink .75s linear infinite;
+  -o-animation: fa-blink .75s linear infinite;
+  animation: fa-blink 1.0s linear infinite;
+}
+
+#estado-setup-1, 
+#estado-setup-2,
+#estado-setup-3,
+#estado-setup-4,
+#estado-setup-5,
+#estado-setup-6,
+#estado-setup-7,
+#estado-setup-8{
+    -webkit-animation: fa-blink .75s linear infinite;
+    -moz-animation: fa-blink .75s linear infinite;
+    -ms-animation: fa-blink .75s linear infinite;
+    -o-animation: fa-blink .75s linear infinite;
+    animation: fa-blink .75s linear infinite;
+    width: 100%;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+#aestado-setup-1, 
+#aestado-setup-2,
+#aestado-setup-3,
+#aestado-setup-4,
+#aestado-setup-5,
+#aestado-setup-6,
+#aestado-setup-7,
+#aestado-setup-8{
+    -webkit-animation: fa-blink .75s linear infinite;
+    -moz-animation: fa-blink .75s linear infinite;
+    -ms-animation: fa-blink .75s linear infinite;
+    -o-animation: fa-blink .75s linear infinite;
+    animation: fa-blink .75s linear infinite;
+    width: 100%;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+#pestado-setup-1, 
+#pestado-setup-2,
+#pestado-setup-3,
+#pestado-setup-4,
+#pestado-setup-5,
+#pestado-setup-6,
+#pestado-setup-7,
+#pestado-setup-8{
+    -webkit-animation: fa-blink .75s linear infinite;
+    -moz-animation: fa-blink .75s linear infinite;
+    -ms-animation: fa-blink .75s linear infinite;
+    -o-animation: fa-blink .75s linear infinite;
+    animation: fa-blink .75s linear infinite;
+    width: 100%;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+#estado-setup{
+    -webkit-animation: fa-blink .75s linear infinite;
+    -moz-animation: fa-blink .75s linear infinite;
+    -ms-animation: fa-blink .75s linear infinite;
+    -o-animation: fa-blink .75s linear infinite;
+    animation: fa-blink .75s linear infinite;
+    width: 100%;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+#nome-operador{
+    width: 100%;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.fade.modal-backdrop.show{
+    opacity: 0.9;
+   }
+.verde {
+background-color: rgb(111, 236, 107);
+}
+.azul {
+    background-color: rgb(150, 183, 220);
+    }
+.vermelho {
+    background-color: rgb(206, 81, 81);
+    }
+.amarelo {
+    background-color: rgb(233, 219, 96);
+    }
+  
+.modal-image {
+    max-width: 100%;
+    max-height: 300px;
+    width: auto;
+    height: auto;
+    display: block;
+    margin: 0 auto; /* Centraliza horizontalmente a imagem */
+}
+
+.navbar-verde {
+    background-color: rgb(71, 173, 76);
+}
+
+.dropdown-item:hover {
+    background-color: #dcdcdc;
+    color: #000;
+}
+
+.termico {
+    background-color: #ffe5cc !important; /* laranja claro */
+}
+
+.geral {
+    background-color: #fff9cc !important; /* amarelo claro */
+}
+
+.amostra {
+    background-color: #d6d6d6 !important; /* branco cinza claro */
+}
+
+.nao-conforme {
+    background-color: #ffd6d6 !important; /* vermelho claro */
+}
+
+table.dataTable {
+    width: 100% !important;
+}
+
+.nav-link:hover {
+    color: #ffffff !important;        /* cor do texto */
+    background-color: #0d6efd;        /* azul forte (padrão Bootstrap) */
+    transition: 0.2s ease-in-out;
+}
+
+body.login-page {
+    background: linear-gradient(rgba(253, 253, 253, 0.6), rgba(47, 156, 52, 0.671)),
+                url('../images/tela_logo_1.png') no-repeat center center;
+    background-size: cover;
+}
+
+body.background-page-default {
+    background: linear-gradient(rgba(253, 253, 253, 0.6), rgba(76, 233, 84, 0.219)),
+                url('../images/tela_logo_1.png') no-repeat center center;
+    background-size: cover;
+}
+
+html, body {
+    height: 100%;
+    margin: 0;
+}
+
+.system-title {
+    font-family: Arial, sans-serif;
+    font-weight: bold;
+    color: #0b4200; /* branco para destacar no fundo */
+    letter-spacing: 1.5px;
+    font-size: 1.5rem;
+}
+
+.login-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+    backdrop-filter: blur(5px);
+}
+
+.login-footer {
+    position: absolute;
+    bottom: 15px;
+    width: 100%;
+    color: #6b6969;
+    font-size: 0.85rem;
+    font-family: Arial, sans-serif;
+    letter-spacing: 0.5px;
+}
+
+.bg-login {
+    background: url('static/source-1.0.0/images/Background.jpg') center/cover no-repeat;
+    min-height: 60vh;
+    padding-top: 5vh;   /* espaço proporcional à tela */
+}
+
+.select2-results__options {
+    max-height: 200px !important;
+    overflow-y: auto !important;
+}
+
+#botao-limpar-form:focus,
+#botao-limpar-form:active {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+.btn:focus,
+.btn:active {
+    outline: none !important;
+    box-shadow: none !important;
+}
+
+#id_produto.bloqueado {
+    pointer-events: none;
+    background-color: #e9ecef;
+}
+
+.table tbody tr.tableSelected td {
+    background-color: #457feb !important;
+    color: #fff !important;
+}
+
+#toggleSenha:hover{
+    color:#000;
+}
+
+
+.footer-sistema{
+    position: fixed;
+    bottom: 0;
+    width: 100%;
+    height: 35px;
+    background-color: #0b6b3a;
+    color: white;
+    font-size: 13px;
+    z-index: 1000;
+}
+
+.footer-container{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+    padding: 0 15px;
+}
+
+.footer-logo{
+    margin-right: 10px;
+}
+
+.footer-logo img{
+    height: 20px;
+}
+
+.footer-text{
+    flex: 1;
+    text-align: center;
+}
+
+#filtroProcesso{
+    color:#043573;
+    font-weight:500;
+}
