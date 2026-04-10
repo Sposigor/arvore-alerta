@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DB_NAME="db_main"
+DB_NAME="db_database"
 DB_USER="postgres"
 
 echo "Criando banco..."

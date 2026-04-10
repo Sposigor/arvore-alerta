@@ -4,7 +4,7 @@ import io
 import time
 
 class postgresDatabase():
-    def __init__(self, user='postgres', password='postgres', host='localhost', dbname='db_main', port='5432'):
+    def __init__(self, user='postgres', password='postgres', host='localhost', dbname='db_database', port='5432'):
         self.lastError = None
         self.connectionString = f"user={user} password={password} host={host} dbname={dbname} port={port}"
 
