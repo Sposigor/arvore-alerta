@@ -1,3 +1,6 @@
+import sys
+sys.path.append("..") # Avisa o Python para procurar módulos na pasta anterior
+
 import bcrypt
 from database import postgresDatabase
 
