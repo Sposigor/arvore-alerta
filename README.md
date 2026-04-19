@@ -1,517 +1,298 @@
-# 📦 Sistema de Rastreabilidade de Ordens de Produção (OP)
+# ArvoreAlerta v2.0
 
-## 📌 Visão Geral
-Este projeto tem como objetivo implementar um **sistema independente de rastreabilidade de Ordens de Produção (OP)**, oferecendo maior **visibilidade, controle e confiabilidade** das informações ao longo do processo produtivo.
+Sistema de detecção e mapeamento de quedas de árvores utilizando imagens de satélite Sentinel-2 (Copernicus CDSE) e processamento de índice de vegetação NDVI.
 
-A solução foi desenhada para **apoiar o modelo de Lean Manufacturing** já existente na empresa, reduzindo desperdícios, retrabalho e falhas de comunicação entre os setores.
-
----
-
-## 🚨 Descrição do Problema (Dor do Cliente)
-
-Atualmente, a empresa não possui um sistema que permita rastrear a Ordem de Produção ao longo das etapas produtivas. Com isso:
-
-- ❌ É necessário realizar **contatos manuais entre setores** para localizar a produção
-- ❌ Não existe **confiabilidade na quantidade real produzida por OP**
-- ❌ Peças podem avançar no processo com **quantidade inferior à prevista**, sem rastreabilidade da perda
-- ❌ Falta **visibilidade em tempo real** da produção entre processos
-
-👉 **Principal dor:** ausência de rastreabilidade e controle da OP ao longo do processo produtivo.
+**Stack:** FastAPI · SQLite · Leaflet.js · openEO · Copernicus CDSE (Sentinel-2 L2A)
 
 ---
 
-## 💡 Proposta da Solução
+## Sobre o Projeto
 
-Será desenvolvido um **sistema web independente de rastreabilidade de Ordens de Produção**, sem integração direta com o ERP da empresa.
+ArvoreAlerta é um sistema web que detecta automaticamente possíveis quedas de árvores a partir da análise de imagens de satélite. O sistema compara o índice de vegetação NDVI de um ponto geográfico em dois períodos distintos — se houver queda brusca, uma ocorrência é registrada com nível de confiança.
 
-### Premissas da Solução
-- 🧾 O ERP será responsável **apenas pela geração do QR Code**
-- 🔍 O sistema utilizará exclusivamente os dados contidos no QR Code
-- 🔄 **Não haverá troca de dados automática** com o ERP
-- 🗄️ Banco de dados próprio para rastreabilidade
-
-Essa abordagem garante **baixo acoplamento**, simplicidade e facilidade de manutenção.
+O projeto foi desenvolvido como Trabalho de Conclusão de Curso (TCC) e demonstra a viabilidade de usar dados públicos e gratuitos do programa Copernicus (ESA/União Europeia) para monitoramento ambiental urbano.
 
 ---
 
-## 🔲 QR Code da Ordem de Produção
+## Estrutura do Projeto
 
-O QR Code conterá as informações necessárias para identificação da OP, tais como:
-
-- 📄 Número da OP
-- 📊 Quantidade prevista
-- 🏷️ Outras informações relevantes para rastreabilidade
-
-Esses dados serão utilizados **exclusivamente pelo sistema desenvolvido**, sem retorno de informações ao ERP.
-
----
-
-## 🏭 Escopo do Processo Produtivo
-
-O sistema será implantado em **6 etapas do processo produtivo**:
-
-| Código | Etapa                  |
-|------:|------------------------|
-| 0     | PCP                    |
-| 1     | Corte                  |
-| 2     | Estamparia             |
-| 3     | Solda                  |
-| 4     | Beneficiamento Externo |
-| 5     | Expedição              |
-
----
-
-## ⚙️ Funcionamento do Sistema
-
-O sistema será utilizado em **computadores (PCs)** posicionados entre os processos produtivos.
-
-### 🔁 Fluxo de Operação
-1. 📷 O operador realiza a **leitura do QR Code da OP**
-2. 🧠 O sistema carrega automaticamente os dados da OP
-3. ✍️ Caso necessário, os dados podem ser preenchidos manualmente
-4. 🔢 O operador informa a quantidade de peças encaminhadas para o próximo processo
-5. ⚠️ Em caso de divergência entre quantidade prevista e informada:
-   - Indicação visual da diferença (exemplo: uso de cores)
-   - Registro da ocorrência para análise posterior
-6. 🔍 Tela de consulta permite localizar rapidamente:
-   - A etapa atual da OP
-   - O histórico de movimentações e quantidades
-
----
-
-## 🧱 Arquitetura da Aplicação
-
-- 🌐 Aplicação **Web**, acessada via navegador
-- 💻 Execução **local**, sem dependência de serviços externos
-- 🗃️ Banco de dados próprio para rastreabilidade
-- 🚫 Sem integração com o ERP
-
----
-
-## ▶️ Execução Local da Aplicação (Windows)
-
-## Para conectar ao banco
-
-- Crie o Banco no PGAdmin 
-- Faça o Restore do banco
-- Use o arquivo .tar
-- Conecte no Dbeaver colocando o nome do banco que vc criou em localhost
-
-<img width="841" height="694" alt="image" src="https://github.com/user-attachments/assets/4f5fa9c9-587b-4b2e-8419-e802634fe93b" />
-
-<img width="395" height="218" alt="image" src="https://github.com/user-attachments/assets/8e1e62ec-517b-4917-834f-811b5f12ae66" />
-
----
-
-## Regra de ouro (grava isso na testa do projeto)
-🔹 pg_restore SÓ funciona com:
-
-.backup
-
-.tar
-
-formato Custom ou Directory
-
-🔹 Arquivo .sql NÃO usa pg_restore
-
-Arquivo .sql é restaurado com psql ou Query Tool.
-
----
-
-## Conexão com o DB: db_main
-
-```powershell
-class postgresDatabase():
-    def __init__(self, user='postgres', password='postgres', host='localhost', dbname='db_main', port='5432'):
 ```
-
-### 🐍 Versão do Python
-
-## Ao Iniciar a aplicação
-
-Sempre que abrir um novo terminal, é necessário ativar o ambiente virtual antes de executar a aplicação.
-
-No diretório raiz do projeto, execute:
-
-```powershell
-.\venv\Scripts\Activate
-```
-
-```powershell
-FROM python:3.8-alpine
-```
-
-⚠️ **Importante:**  
-A aplicação deve ser executada com **Python 3.8**. Versões superiores (ex: 3.12) podem causar erros de compatibilidade.
-
----
-
-### 1️⃣ Verificar versões de Python instaladas
-
-```powershell
-py --list
-```
-
-✔️ Certifique-se de que **Python 3.8** esteja listado.
-
----
-
-### 2️⃣ Instalar Python 3.8 (se necessário)
-
-- Instale o Python 3.8 (64-bit)
-- Não é necessário remover outras versões
-- Múltiplas versões podem coexistir no Windows
-
-```powershell
-winget install Python.Python.3.8
+projeto_tcc/
+├── backend/
+│   ├── main.py              # API FastAPI — lógica principal
+│   ├── requirements.txt     # Dependências Python
+│   ├── .env.example         # Template de credenciais (versionar)
+│   ├── .env                 # Credenciais reais (não versionar — criar a partir do .env.example)
+│   ├── arvore_alerta.db     # Banco SQLite (criado automaticamente, não versionar)
+│   └── scripts/
+│       ├── seed.py          # Popula banco com dados simulados (demo)
+│       └── seed_real.py     # Popula banco com NDVI real via Copernicus
+├── frontend/
+│   └── index.html           # Interface web (mapa + análise NDVI)
+├── .gitignore
+└── README.md
 ```
 
 ---
 
-### 3️⃣ Acessar a pasta do projeto
+## Pré-requisitos
 
-Exemplo:
-
-```text
-C:\Projects\EM_ANDAMENTO\Aplication\webapp
-```
-
----
-
-### 4️⃣ Criar o ambiente virtual (venv)
-
-```powershell
-py -3.8 -m venv venv
-venv\Scripts\activate
-```
-
-Confirme:
-
-```powershell
-python --version
-```
+- **Python 3.9+**
+- **Conta Copernicus CDSE** — gratuita, sem cartão de crédito
+  - Cadastro: https://dataspace.copernicus.eu
+  - Dá acesso a imagens Sentinel-2 dos últimos 2 anos e 15.000 créditos openEO/mês
 
 ---
 
-### 5️⃣ Instalar dependências
+## Tutorial de Instalação
 
-```powershell
+### 1. Clonar o repositório
+
+```bash
+git clone <url-do-repositorio>
+cd projeto_tcc
+```
+
+### 2. Criar ambiente virtual Python
+
+```bash
+cd backend
+python -m venv .venv
+
+# Linux / macOS
+source .venv/bin/activate
+
+# Windows
+.venv\Scripts\activate
+```
+
+### 3. Instalar dependências
+
+```bash
 pip install -r requirements.txt
 ```
 
-📦 O arquivo `requirements.txt` já possui o NumPy compatível:
+### 4. Configurar credenciais Copernicus
 
-```text
-numpy==1.21.6
+```bash
+cd backend
+cp .env.example .env
+# Edite .env com seu editor preferido e preencha suas credenciais
+```
+
+> Sem o `.env`, o sistema roda em **modo simulado** — todos os valores de NDVI são gerados aleatoriamente. Útil para testar a interface sem conta Copernicus.
+
+### 5. Iniciar o backend
+
+```bash
+# Na pasta backend/
+uvicorn main:app --reload --port 8000
+```
+
+API disponível em: http://localhost:8000  
+Documentação interativa (Swagger): http://localhost:8000/docs
+
+### 6. Iniciar o frontend
+
+Em outro terminal:
+
+```bash
+cd frontend
+python -m http.server 3000
+```
+
+Acesse: http://localhost:3000
+
+### 7. Popular o banco de dados
+
+**Dados simulados** (rápido, sem conta Copernicus):
+```bash
+cd backend
+python scripts/seed.py
+```
+
+**Dados reais via Copernicus** (requer `.env` configurado e backend rodando):
+```bash
+cd backend
+python scripts/seed_real.py
+# Processa ~29 cidades. Cada ponto leva 60–120 s.
 ```
 
 ---
 
-### 6️⃣ Executar a aplicação
+## Como Usar
 
-```powershell
-python main.py
+1. **Selecionar período** — o seletor no topo do painel filtra as ocorrências exibidas no mapa (15 dias até 1 ano)
+2. **Analisar um ponto** — clique em qualquer lugar do mapa para preencher as coordenadas, ajuste a janela de referência NDVI e clique em **Consultar Sentinel-2**
+3. **Ver detalhes** — clique em qualquer marcador ou card da lista para abrir o painel de detalhes com as barras de NDVI
+4. **Filtrar por severidade** — botões **Todos / Alto / Médio** acima da lista atualizam o mapa e a listagem simultaneamente
+5. **Expandir mapa** — o botão `‹` na borda do painel recolhe a sidebar
+
+---
+
+## Como o NDVI funciona
+
+O NDVI (Normalized Difference Vegetation Index) mede a densidade e saúde da vegetação a partir de imagens de satélite.
+
+```
+NDVI = (NIR - Red) / (NIR + Red)
+
+  NIR = Banda B08 do Sentinel-2 (infravermelho próximo, 842 nm)
+  Red = Banda B04 do Sentinel-2 (vermelho visível, 665 nm)
 ```
 
-Ou:
+**Interpretação dos valores:**
 
-```powershell
-set FLASK_APP=main:app
-flask run
+| NDVI | Significado |
+|------|-------------|
+| > 0.5 | Vegetação densa e saudável |
+| 0.2 – 0.5 | Vegetação moderada |
+| 0.0 – 0.2 | Solo exposto ou vegetação esparsa |
+| < 0.0 | Água, nuvens ou superfícies artificiais |
+
+**Detecção de queda:**
+
+O sistema compara o NDVI do período atual com o mesmo período do ano anterior. Uma queda brusca indica perda de cobertura vegetal.
+
+| Δ NDVI | Nível | Confiança |
+|--------|-------|-----------|
+| > 0.20 | Alto | 60–99% |
+| 0.10 – 0.20 | Médio | 40–60% |
+| ≤ 0.10 | Normal | — |
+
+---
+
+## API REST
+
+### Por que uma API?
+
+A API é a camada central do sistema. Ela orquestra três responsabilidades distintas:
+
+1. **Integração com o Copernicus CDSE** — autentica via OAuth2, consulta o catálogo OData para encontrar cenas Sentinel-2 recentes com cobertura de nuvens < 20%, e processa as bandas via openEO
+2. **Cálculo e persistência** — interpreta o NDVI calculado, classifica o nível de alerta e persiste ocorrências no banco SQLite
+3. **Servir dados ao frontend** — expõe endpoints REST consumidos pelo mapa Leaflet em tempo real
+
+Separar a API do frontend permite que qualquer outra interface (app mobile, painel municipal, script de automação) consuma os mesmos dados sem duplicar a lógica de negócio.
+
+### Endpoints
+
+#### Análise por Satélite
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `POST` | `/satelite/analisar` | Consulta Sentinel-2, calcula NDVI e registra se anomalia |
+
+**Parâmetros (query string):**
+
+| Parâmetro | Tipo | Obrigatório | Descrição |
+|-----------|------|-------------|-----------|
+| `latitude` | float | Sim | Latitude do ponto |
+| `longitude` | float | Sim | Longitude do ponto |
+| `cidade` | string | Não | Nome da cidade/bairro |
+| `dias_ref` | int | Não (padrão: 30) | Janela de referência NDVI em dias |
+
+**Exemplo de resposta:**
+```json
+{
+  "produto_sentinel2": "S2B_MSIL2A_20260418...",
+  "ndvi_ref": 0.631,
+  "ndvi_atual": 0.312,
+  "ndvi_delta": 0.319,
+  "nivel": "alto",
+  "queda_detectada": true,
+  "confianca": 0.88,
+  "descricao": "Queda brusca de NDVI detectada (Δ=0.319). NDVI atual: 0.312.",
+  "ocorrencia_id": 42
+}
+```
+
+#### Ocorrências
+
+| Método | Rota | Parâmetros | Descrição |
+|--------|------|------------|-----------|
+| `GET` | `/ocorrencias` | `?dias=30&limite=100` | Lista ocorrências filtradas por período |
+| `DELETE` | `/ocorrencias/{id}` | — | Remove uma ocorrência |
+
+#### Estatísticas
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| `GET` | `/stats` | Total de ocorrências, confirmados e confiança média |
+
+**Exemplo `/stats`:**
+```json
+{
+  "total": 53,
+  "confirmados": 53,
+  "media_confianca": 0.79,
+  "reportes_usuario": 0
+}
 ```
 
 ---
 
-## 🚀 Aplicação em Execução
+## Modos de Operação
 
-Se aparecer:
+| Modo | Configuração | NDVI | Uso |
+|------|-------------|------|-----|
+| **Simulado** | Sem `.env` | Gerado aleatoriamente | Testes locais, demo de interface |
+| **Real** | Com `.env` + openEO | Calculado do Sentinel-2 | Produção, TCC com dados reais |
 
-```text
-Serving Flask app 'main'
-Running on http://127.0.0.1:5000
+O sistema detecta automaticamente qual modo usar. Se as credenciais estiverem configuradas e o pacote `openeo` instalado, usa dados reais com fallback automático para simulação em caso de erro (ex: nuvens, sem imagens no período).
+
+---
+
+## Custos da API Copernicus
+
+| Recurso | Limite gratuito |
+|---------|----------------|
+| Busca no catálogo (OData/STAC) | Ilimitado |
+| Download de bandas via S3 | 12 TB/mês |
+| Processamento openEO | 15.000 créditos/mês |
+
+**Para este projeto:** o consumo típico é de ~2 créditos openEO por análise. O free tier cobre milhares de consultas mensais.
+
+---
+
+## Solução de Problemas
+
+**Backend não conecta ao Copernicus:**
+```
+Verifique se CDSE_USER e CDSE_PASS estão corretos no .env
+Teste a autenticação: python -c "from dotenv import load_dotenv; load_dotenv(); import os, httpx; r = httpx.post('https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token', data={'grant_type':'password','client_id':'cdse-public','username':os.getenv('CDSE_USER'),'password':os.getenv('CDSE_PASS')}); print(r.status_code)"
 ```
 
-🎉 A aplicação está funcionando corretamente.
+**NDVI retorna simulado mesmo com credenciais:**
+```
+Verifique se openeo e numpy estão instalados: pip install openeo numpy
+A resposta da API inclui o motivo no campo "produto_sentinel2"
+```
 
-Acesse no navegador:
+**Frontend não conecta ao backend:**
+```
+Confirme que o backend está rodando em http://localhost:8000
+Verifique erros no console do navegador (F12)
+```
 
-👉 **http://192.168.....:5000**
-
----
-
-## ⚠️ Observações Importantes
-
-- Servidor Flask é **apenas para desenvolvimento**
-- Em produção, utilize **Docker + uWSGI**
-- Avisos `SyntaxWarning` não impedem a execução
-
----
-
-## ✅ Benefícios Esperados
-
-- 📈 Maior visibilidade do fluxo produtivo
-- 📉 Redução de perdas não identificadas
-- 🔒 Maior confiabilidade das informações
-- ⏱️ Menor dependência de comunicação manual
-- 🏗️ Apoio direto às práticas de Lean Manufacturing
+**Nenhuma imagem Sentinel-2 encontrada:**
+```
+A região pode ter cobertura de nuvens > 20% no período
+Aumente a janela de referência NDVI para 60 ou 90 dias
+Regiões de alta nebulosidade (ex: Amazônia na estação chuvosa) podem não ter dados
+```
 
 ---
 
-## 📄 Licença
-
-Este projeto é distribuído conforme os termos definidos no arquivo `LICENSE`.
-
----
-
-
-# 📋 REGRA DE NEGÓCIO  
-## Sistema de Controle de Ordens de Produção
-
----
-
-## 🏗️ 1. Estrutura Geral da OP
-
-- Existe **apenas um cadastro de Ordem de Produção (OP)** no sistema.
-- Cada OP pode possuir **até 8 processos vinculados**, conforme cadastro na tabela de Processos.
-- Cada processo representa um setor produtivo (ex: Corte, Estampa, Tratamento, Expedição, etc.).
-- Não pode existir duas OPs com o mesmo número.
-
----
-
-## 🔄 2. Encerramento Automático
-
-- Quando o setor **Expedição** finalizar seu processo:
-  - O sistema automaticamente altera o status geral da OP para **FINALIZADO**.
-  - Nenhum novo apontamento poderá ser realizado nessa OP.
-
----
-
-## 👥 3. Níveis de Acesso
-
-### 🔹 Operacional
-
-**Permissões:**
-- Visualizar monitoramento apenas do seu setor.
-- Visualizar histórico apenas do seu setor.
-- Iniciar produção (abrir OP no setor).
-- Finalizar produção (fechar OP no setor).
-- Localizar OP por código de barras ou manualmente.
-
-**Restrições:**
-- Não pode criar OP.
-- Não pode editar cadastro de cliente ou produto.
-- Não pode gerenciar usuários.
-
----
-
-### 🔹 PCP
-
-**Permissões:**
-- Visão geral de todos os setores.
-- Cadastrar produtos.
-- Cadastrar clientes.
-- Cadastrar OPs.
-- Editar dados de OP.
-- Acompanhar status geral.
-
----
-
-### 🔹 Administrador
-
-**Permissões:**
-- Todas as permissões do PCP.
-- Criar usuários.
-- Alterar senhas.
-- Gerenciar níveis de acesso.
-
----
-
-## ⚙️ 4. Regras de Produção
-
-### ▶️ 4.1 Início de Produção
-
-Não é permitido iniciar produção se:
-
-- A OP não estiver cadastrada no sistema.
-- A OP estiver com status **Cancelado**.
-- A OP estiver com status **Finalizado**.
-  
----
-
-### 🔁 4.2 Fluxo entre Setores
-
-#### Status possíveis da OP
-
-| Status        | Descrição |
-|---------------|-----------|
-| ⏳ Aguardando | OP cadastrada, aguardando início em algum setor |
-| 🏭 Em Produção | OP em execução no setor |
-| ✅ Finalizado | Processo encerrado na Expedição |
-| ❌ Cancelado | OP cancelada, não pode mais produzir |
-
-#### Regras de Transição
-
-- Quando um setor finaliza:
-  - status muda para **Aguardando**
-  - Se for o setor **Expedição** → status muda para **Finalizado**
-
-- OP **Cancelada**:
-  - Não pode iniciar produção.
-  - Permanece disponível para consulta no histórico.
-  - Não pode gerar novos apontamentos.
-
----
-
-## 🗂️ 5. Cadastro e Controle de OP
-
-- O cadastro da OP é responsabilidade do **PCP**.
-- O Operacional apenas executa produção.
-- OP cancelada mantém todo o histórico produtivo.
-- Não é possível iniciar produção de uma OP inexistente.
-
----
-
-## 📷 6. Leitura de Código de Barras / QR Code
-
-### 📌 Padrão Utilizado
-
-- **Code 128**
-- Exemplo: 0002775500012775015AB389444420260812
-
-### 📐 Estrutura do Código
-
-| Campo | Tamanho | Exemplo |
-|--------|----------|----------|
-| OP | 8 dígitos | 00027755 |
-| AQ | 8 dígitos | 00012775 |
-| Código Produto | 12 caracteres | 015AB3894444 |
-| Data Entrega | 8 dígitos | 20260812 |
-
-### 🔎 Tratamento da Leitura
-
-O sistema:
-
-- Ignora zeros à esquerda nos campos:
-  - OP
-  - AQ
-  - Código do produto
-- Converte a data para formato `YYYY-MM-DD`
-- Preenche automaticamente:
-  - Número da OP
-  - Número AQ
-  - Código do produto
-  - Data de entrega
-- Realiza busca automática do produto no banco pelo código.
-
----
-
-## 🔍 7. Localização da OP
-
-A OP pode ser localizada por:
-
-- 📷 Leitura do código de barras
-- ⌨️ Digitação manual do número da OP
-
----
-
-## 📊 8. Controle por Processo
-
-- Cada OP pode passar pelos 8 processos.
-- Cada processo registra seu próprio status de execução, no menu de monitoramento e histórico de produção.
-- A finalização do último processo (Expedição) encerra automaticamente a OP.
-
----
-
-## 🧾 9. Histórico
-
-- Todas as movimentações ficam registradas.
-- OPs finalizadas ou canceladas permanecem disponíveis para consulta.
-- O histórico é segmentado por setor conforme nível de acesso.
-
----
-
-## 🚫 Regras Críticas
-
-- Não pode haver produção simultânea da mesma OP no mesmo setor.
-- Não é permitido iniciar produção sem OP cadastrada.
-- OP Finalizada ou Cancelada não pode receber novos apontamentos.
-
----
-
-### 🔐 Alteração Manual para Status **Finalizado**
-
-A alteração manual do status da OP para **Finalizado** sem passar pelo processo da Expedição é permitida **somente para os níveis:**
-
-- 👔 PCP  
-- 🛠️ Administrador  
-
-Usuários do nível **Operacional** não possuem permissão para realizar essa alteração.
-
-Essa regra garante controle hierárquico e evita encerramentos indevidos de Ordens de Produção.
-
----
-
-## ❓ 10. Regras Complementares do Sistema
-
-### 🔄 Uma OP pode voltar de **Finalizado** para **Em Produção**?
-
-**Sim.**
-
-Basta alterar o status da ordem no menu:
-
-> Ordens → Editar Ordem → Alterar Status
-
----
-
-### ♻️ Uma OP Cancelada pode ser reativada?
-
-**Sim.**
-
-Basta alterar o status para **Aguardando** no menu:
-
-> Ordens → Editar Ordem → Alterar Status
-
----
-
-### 🏭 Pode existir produção simultânea da mesma OP em dois ou mais setores?
-
-**Sim.**
-
-O sistema foi projetado para permitir produção simultânea em setores diferentes.
-
-Cada setor controla seu próprio processo de forma independente.
-
----
-
-### 📦 Existe controle de quantidade produzida por setor?
-
-**Sim.**
-
-Existe um campo onde o operador informa a quantidade produzida ao finalizar o processo no setor.
-
----
-
-### ✏️ Existe bloqueio para editar OP que já iniciou produção?
-
-**Não.**
-
-A OP pode ser editada durante o processo produtivo.
-
----
-
-### 👤 Existe rastreabilidade por operador (chapa)?
-
-**Sim.**
-
-O sistema registra:
-
-- Operador que iniciou a produção
-- Operador que encerrou a produção
-
-Isso garante rastreabilidade completa por setor.
-
----
-
-
-
-
+## Roadmap
+
+- [x] Cálculo de NDVI com dados reais via openEO
+- [x] Heatmap de densidade de ocorrências
+- [x] Filtro por período e severidade
+- [x] Clustering de marcadores no mapa
+- [x] Painel de detalhes por ocorrência
+- [x] Exportação GeoJSON / CSV
+- [x] Comparação ano a ano (mesmo período safra anterior)
+- [x] Integração com API de alertas da Defesa Civil (INMET)
+- [x] Análise com Radar Sentinel-1 (ignora cobertura de nuvens)
+- [ ] Notificações push por área de interesse
+- [ ] App mobile (PWA)
