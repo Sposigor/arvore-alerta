@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ArvoreAlerta — Detecção de Quedas</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css"/>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css"/>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green:    #2d6a4f;
+      --green-lt: #52b788;
+      --amber:    #e76f00;
+      --amber-lt: #fca130;
+      --red:      #c1121f;
+      --blue:     #1a73e8;
+      --bg:       #0d1117;
+      --surface:  #161b22;
+      --surface2: #1e2530;
+      --border:   #30363d;
+      --text:     #e6edf3;
+      --muted:    #8b949e;
+      --radius:   10px;
+    }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* HEADER */
+    header {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 0 20px;
+      height: 56px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+      z-index: 1000;
+    }
+    .logo {
+      font-family: 'Syne', sans-serif;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--green-lt);
+      letter-spacing: -0.3px;
+      white-space: nowrap;
+    }
+    .logo span { color: var(--text); font-weight: 400; }
+    .header-stats {
+      display: flex;
+      gap: 16px;
+      margin-left: auto;
+      flex-wrap: wrap;
+    }
+    .stat-pill {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .stat-pill b { color: var(--text); font-weight: 500; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+    .dot-green  { background: var(--green-lt); }
+    .dot-amber  { background: var(--amber-lt); }
+    .dot-blue   { background: var(--blue); }
+
+    /* LAYOUT */
+    .app-body { display: flex; flex: 1; overflow: hidden; position: relative; }
+
+    /* SIDEBAR */
+    aside {
+      width: 350px;
+      flex-shrink: 0;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      transition: width .25s ease;
+    }
+
+    /* SIDEBAR TOGGLE */
+    .sidebar-toggle {
+      position: absolute; left: 350px; top: 50%; transform: translateY(-50%);
+      z-index: 1001; width: 18px; height: 48px;
+      background: var(--surface); border: 1px solid var(--border); border-left: none;
+      border-radius: 0 6px 6px 0; color: var(--muted); cursor: pointer;
+      font-size: 11px; display: flex; align-items: center; justify-content: center;
+      transition: left .25s ease, color .15s; padding: 0;
+    }
+    .sidebar-toggle:hover { color: var(--text); }
+
+    /* TABS */
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .tab-btn {
+      padding: 13px 10px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      font-family: 'Syne', sans-serif;
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: .5px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+    }
+    .tab-btn:hover { color: var(--text); }
+    .tab-btn.active-sat { color: var(--green-lt); border-bottom-color: var(--green-lt); }
+    .tab-btn.active-waze { color: var(--amber-lt); border-bottom-color: var(--amber-lt); }
+
+    /* TAB PANELS */
+    .tab-panel { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+    .tab-panel.visible { display: flex; }
+
+    /* FORM ELEMENTS */
+    .panel-section {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .section-title {
+      font-family: 'Syne', sans-serif;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+    .field-group { display: flex; flex-direction: column; gap: 4px; margin-bottom: 8px; }
+    .field-label { font-size: 11px; color: var(--muted); }
+    .coord-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    input[type="text"], input[type="number"], textarea, select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 7px 10px;
+      color: var(--text);
+      font-size: 13px;
+      font-family: 'DM Sans', sans-serif;
+      width: 100%;
+      outline: none;
+      transition: border-color .2s;
+      resize: none;
+    }
+    input:focus, textarea:focus { border-color: var(--green-lt); }
+    .hint-text { font-size: 11px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+
+    /* BUTTONS */
+    .btn {
+      width: 100%;
+      padding: 10px;
+      border: none;
+      border-radius: var(--radius);
+      font-family: 'Syne', sans-serif;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s;
+      margin-top: 10px;
+      letter-spacing: .3px;
+    }
+    .btn:disabled { opacity: .45; cursor: not-allowed; }
+    .btn:active { transform: scale(0.98); }
+    .btn-sat  { background: var(--green); color: #fff; }
+    .btn-sat:hover:not(:disabled)  { background: var(--green-lt); }
+    .btn-waze { background: #b85c00; color: #fff; }
+    .btn-waze:hover:not(:disabled) { background: var(--amber); }
+
+    /* STATUS BAR */
+    .status-bar { padding: 8px 12px; font-size: 12px; border-radius: 6px; margin-top: 8px; display: none; line-height: 1.5; }
+    .status-bar.success { background: rgba(82,183,136,.14); color: var(--green-lt); display: block; }
+    .status-bar.error   { background: rgba(193,18,31,.14);  color: #ff8888; display: block; }
+    .status-bar.loading { background: rgba(255,255,255,.05); color: var(--muted); display: block; }
+    .status-bar.info    { background: rgba(26,115,232,.14); color: #6ab4ff; display: block; }
+
+    /* NDVI RESULT CARD */
+    .ndvi-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px;
+      margin-top: 10px;
+      display: none;
+    }
+    .ndvi-card.visible { display: block; }
+    .ndvi-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
+    .ndvi-label { font-size: 11px; color: var(--muted); }
+    .ndvi-val { font-size: 13px; font-weight: 500; font-family: monospace; }
+    .ndvi-bar-wrap { height: 4px; background: var(--border); border-radius: 2px; overflow: hidden; margin: 4px 0 10px; }
+    .ndvi-bar { height: 100%; border-radius: 2px; transition: width .6s ease; }
+
+    /* OCORRÊNCIAS LIST */
+    .ocorrencias-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px 12px 12px;
+    }
+    .ocorrencias-list::-webkit-scrollbar { width: 4px; }
+    .ocorrencias-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 16px 6px;
+      flex-shrink: 0;
+    }
+    .list-title { font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.2px; color: var(--muted); }
+
+    .oc-card {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 11px 12px;
+      margin-bottom: 7px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+    }
+    .oc-card:hover { border-color: var(--green-lt); background: rgba(82,183,136,.04); }
+    .oc-card.waze:hover { border-color: var(--amber-lt); background: rgba(231,111,0,.04); }
+    .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 5px; }
+    .card-id  { font-size: 11px; color: var(--muted); }
+    .badge {
+      font-size: 10px; font-weight: 700; padding: 2px 8px;
+      border-radius: 20px; text-transform: uppercase; letter-spacing: .5px;
+    }
+    .badge-sat    { background: rgba(82,183,136,.18); color: var(--green-lt); }
+    .badge-waze   { background: rgba(252,161,48,.18); color: var(--amber-lt); }
+    .badge-alto   { background: rgba(193,18,31,.18);  color: #ff7070; }
+    .badge-medio  { background: rgba(231,111,0,.18);  color: var(--amber-lt); }
+    .card-desc  { font-size: 12px; color: var(--muted); line-height: 1.5; margin-bottom: 4px; }
+    .card-coord { font-size: 11px; color: var(--muted); font-family: monospace; }
+    .card-conf-bar { margin-top: 7px; height: 3px; background: var(--border); border-radius: 2px; overflow: hidden; }
+    .card-conf-fill { height: 100%; border-radius: 2px; transition: width .6s ease; }
+    .conf-green { background: var(--green-lt); }
+    .conf-amber { background: var(--amber-lt); }
+    .conf-red   { background: var(--red); }
+
+    /* CONFIRMAR BUTTON inside card */
+    .btn-confirmar {
+      margin-top: 7px;
+      padding: 5px 12px;
+      background: rgba(252,161,48,.12);
+      border: 1px solid rgba(252,161,48,.3);
+      border-radius: 6px;
+      color: var(--amber-lt);
+      font-size: 11px;
+      font-weight: 600;
+      font-family: 'Syne', sans-serif;
+      cursor: pointer;
+      transition: background .15s;
+    }
+    .btn-confirmar:hover { background: rgba(252,161,48,.22); }
+
+    .empty-state { text-align: center; padding: 36px 16px; color: var(--muted); font-size: 13px; line-height: 1.8; }
+    .empty-icon  { font-size: 30px; margin-bottom: 8px; }
+
+    /* AUTOCOMPLETE */
+    .autocomplete-wrap { position: relative; }
+    .suggestions-list {
+      position: absolute; top: 100%; left: 0; right: 0;
+      background: var(--surface2); border: 1px solid var(--border);
+      border-top: none; border-radius: 0 0 6px 6px;
+      z-index: 999; display: none; max-height: 180px; overflow-y: auto;
+    }
+    .suggestions-list::-webkit-scrollbar { width: 4px; }
+    .suggestions-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .suggestion-item {
+      padding: 8px 10px; font-size: 12px; color: var(--text);
+      cursor: pointer; border-bottom: 1px solid var(--border);
+    }
+    .suggestion-item:last-child { border-bottom: none; }
+    .suggestion-item:hover { background: rgba(82,183,136,.1); color: var(--green-lt); }
+
+    /* FILTER BUTTONS */
+    .filter-btns { display: flex; gap: 4px; }
+    .filter-btn {
+      padding: 3px 8px; border-radius: 20px; border: 1px solid var(--border);
+      background: none; color: var(--muted); font-size: 10px;
+      font-family: 'Syne', sans-serif; font-weight: 700; cursor: pointer;
+      text-transform: uppercase; letter-spacing: .4px; transition: all .15s;
+    }
+    .filter-btn:hover { color: var(--text); }
+    .filter-btn.active-todos { color: var(--text); border-color: var(--text); background: rgba(255,255,255,.06); }
+    .filter-btn.active-alto  { color: #ff7070; border-color: #c1121f; background: rgba(193,18,31,.12); }
+    .filter-btn.active-medio { color: var(--amber-lt); border-color: var(--amber); background: rgba(231,111,0,.12); }
+
+    /* MAP */
+    #map { width: 100%; height: 100%; z-index: 1; }
+    .map-wrap { position: relative; flex: 1; overflow: hidden; }
+    .map-hint {
+      position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+      padding: 6px 14px; font-size: 11px; color: var(--muted); z-index: 500;
+      pointer-events: none; white-space: nowrap;
+    }
+
+    /* DETAIL PANEL */
+    .detail-panel {
+      display: none; flex-direction: column; flex-shrink: 0;
+      background: var(--surface2); border-top: 2px solid var(--green);
+      padding: 12px 14px; max-height: 220px; overflow-y: auto;
+    }
+    .detail-panel.visible { display: flex; }
+    .detail-panel::-webkit-scrollbar { width: 4px; }
+    .detail-panel::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+    .detail-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+    .detail-id   { font-family: 'Syne', sans-serif; font-size: 12px; font-weight: 700; }
+    .detail-city { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .detail-close { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 15px; padding: 0; line-height: 1; }
+    .detail-close:hover { color: var(--text); }
+    .detail-row  { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+    .detail-lbl  { font-size: 10px; color: var(--muted); width: 78px; flex-shrink: 0; }
+    .detail-bar-wrap { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .detail-bar  { height: 100%; border-radius: 3px; transition: width .5s ease; }
+    .detail-val  { font-size: 11px; font-family: monospace; color: var(--text); width: 36px; text-align: right; flex-shrink: 0; }
+    .detail-delta { font-size: 11px; color: var(--muted); margin: 2px 0 8px; }
+    .detail-desc  { font-size: 11px; color: var(--muted); line-height: 1.5; margin-bottom: 6px; }
+    .detail-meta  { font-size: 10px; color: var(--muted); font-family: monospace; }
+
+    /* MAP LOADING OVERLAY */
+    .map-loading {
+      position: absolute; inset: 0; z-index: 600;
+      background: rgba(13,17,23,.6); backdrop-filter: blur(2px);
+      display: none; align-items: center; justify-content: center;
+      flex-direction: column; gap: 12px;
+    }
+    .map-loading.visible { display: flex; }
+    .spinner {
+      width: 36px; height: 36px;
+      border: 3px solid rgba(82,183,136,.25); border-top-color: var(--green-lt);
+      border-radius: 50%; animation: spin .75s linear infinite;
+    }
+    .loading-label { font-family: 'Syne', sans-serif; font-size: 13px; font-weight: 600; color: var(--green-lt); }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* PERIOD PILL */
+    .period-pill {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: var(--surface); border: 1px solid var(--border); border-radius: 20px;
+      padding: 5px 14px; font-family: 'Syne', sans-serif; font-size: 11px;
+      font-weight: 600; color: var(--text); z-index: 500;
+      pointer-events: none; white-space: nowrap;
+    }
+
+    /* MAP LEGEND */
+    .map-legend {
+      position: absolute; bottom: 30px; right: 10px; z-index: 500;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 8px 12px; min-width: 155px;
+    }
+    .legend-title {
+      font-family: 'Syne', sans-serif; font-size: 10px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 6px;
+    }
+    .legend-bar {
+      height: 8px; border-radius: 4px; margin-bottom: 4px;
+      background: linear-gradient(to right, #00c853, #ffd600, #ff6d00, #d50000);
+    }
+    .legend-labels { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); }
+
+    /* LEAFLET DARK OVERRIDES */
+    .leaflet-tile { filter: brightness(0.72) saturate(0.75); }
+    .leaflet-popup-content-wrapper {
+      background: var(--surface2); color: var(--text);
+      border: 1px solid var(--border); border-radius: var(--radius);
+      box-shadow: 0 4px 20px rgba(0,0,0,.5);
+    }
+    .leaflet-popup-tip { background: var(--surface2); }
+    .popup-inner { font-family: 'DM Sans', sans-serif; font-size: 13px; line-height: 1.7; min-width: 180px; }
+    .popup-inner strong { font-family: 'Syne', sans-serif; }
+    .popup-sub { font-size: 11px; color: var(--muted); }
+    .popup-btn {
+      display: inline-block; margin-top: 8px; padding: 5px 14px;
+      background: rgba(252,161,48,.15); border: 1px solid rgba(252,161,48,.35);
+      border-radius: 6px; color: var(--amber-lt); font-size: 11px; font-weight: 600;
+      cursor: pointer; font-family: 'Syne', sans-serif;
+    }
+    .popup-btn:hover { background: rgba(252,161,48,.25); }
+
+    @keyframes pulse {
+      0%   { transform: scale(1); opacity: 1; }
+      70%  { transform: scale(2.4); opacity: 0; }
+      100% { transform: scale(2.4); opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Arvore<span>Alerta</span></div>
+  <div class="header-stats">
+    <div class="stat-pill"><div class="dot dot-green"></div><span>Ocorrências: <b id="stat-sat">0</b></span></div>
+    <div class="stat-pill"><span>Confiança média: <b id="stat-conf">—</b></span></div>
+  </div>
+</header>
+
+<div class="app-body">
+  <button class="sidebar-toggle" id="sidebar-toggle" onclick="toggleSidebar()" title="Recolher painel">‹</button>
+  <aside>
+    <!-- Período do mapa -->
+    <div class="panel-section">
+      <div class="section-title">Período exibido no mapa</div>
+      <select id="mapa-periodo" onchange="carregarDados()">
+        <option value="15">Últimos 15 dias</option>
+        <option value="30" selected>Últimos 30 dias</option>
+        <option value="60">Últimos 60 dias</option>
+        <option value="90">Últimos 90 dias</option>
+        <option value="180">Últimos 6 meses</option>
+        <option value="365">Último ano</option>
+      </select>
+    </div>
+
+    <!-- Análise Sentinel-2 -->
+    <div class="tab-panel visible" id="panel-sat">
+      <div class="panel-section">
+        <div class="section-title">Análise Sentinel-2 / NDVI</div>
+
+        <div class="coord-row">
+          <div class="field-group">
+            <span class="field-label">Latitude</span>
+            <input type="number" id="sat-lat" placeholder="-23.550" step="any"/>
+          </div>
+          <div class="field-group">
+            <span class="field-label">Longitude</span>
+            <input type="number" id="sat-lng" placeholder="-46.633" step="any"/>
+          </div>
+        </div>
+
+        <div class="field-group" style="margin-top:6px;">
+          <span class="field-label">Cidade / Bairro (opcional)</span>
+          <div class="autocomplete-wrap">
+            <input type="text" id="sat-cidade" placeholder="Ex: São Paulo — Parelheiros" autocomplete="off"/>
+            <div class="suggestions-list" id="sat-cidade-list"></div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <span class="field-label">Janela de referência NDVI (dias)</span>
+          <select id="sat-dias">
+            <option value="15">15 dias</option>
+            <option value="30" selected>30 dias</option>
+            <option value="60">60 dias</option>
+            <option value="90">90 dias</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <span class="field-label">Comparação de referência</span>
+          <select id="sat-modo-ref">
+            <option value="ano_anterior" selected>Mesmo período — ano anterior</option>
+            <option value="recente">Período imediatamente anterior</option>
+          </select>
+        </div>
+
+        <p class="hint-text">💡 Clique no mapa para preencher as coordenadas. O sistema buscará imagens Sentinel-2 recentes e calculará a variação de NDVI.</p>
+
+        <button class="btn btn-sat" id="btn-sat" onclick="analisarSatelite()">Consultar Sentinel-2</button>
+        <div class="status-bar" id="status-sat"></div>
+
+        <!-- Resultado NDVI -->
+        <div class="ndvi-card" id="ndvi-card">
+          <div class="section-title" style="margin-bottom:8px;">Resultado NDVI</div>
+          <div class="ndvi-row">
+            <span class="ndvi-label">NDVI referência</span>
+            <span class="ndvi-val" id="ndvi-ref">—</span>
+          </div>
+          <div class="ndvi-row">
+            <span class="ndvi-label">NDVI atual</span>
+            <span class="ndvi-val" id="ndvi-atual">—</span>
+          </div>
+          <div class="ndvi-bar-wrap">
+            <div class="ndvi-bar" id="ndvi-bar" style="width:0%;background:var(--green-lt)"></div>
+          </div>
+          <div class="ndvi-row">
+            <span class="ndvi-label">Variação (Δ)</span>
+            <span class="ndvi-val" id="ndvi-delta">—</span>
+          </div>
+          <div class="ndvi-row" style="margin-top:4px;">
+            <span class="ndvi-label">Nível de alerta</span>
+            <span class="ndvi-val" id="ndvi-nivel">—</span>
+          </div>
+          <div class="ndvi-row">
+            <span class="ndvi-label">Período atual</span>
+            <span style="font-size:11px;color:var(--muted);" id="ndvi-periodo-atu">—</span>
+          </div>
+          <div class="ndvi-row">
+            <span class="ndvi-label">Período ref.</span>
+            <span style="font-size:11px;color:var(--muted);" id="ndvi-periodo-ref">—</span>
+          </div>
+          <div class="ndvi-row">
+            <span class="ndvi-label">Produto</span>
+            <span style="font-size:11px;color:var(--muted);max-width:170px;text-align:right;word-break:break-all;" id="ndvi-produto">—</span>
+          </div>
+          <div id="ndvi-radar-row" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+            <div class="ndvi-row">
+              <span class="ndvi-label">Radar S-1 Δ</span>
+              <span class="ndvi-val" id="ndvi-radar-delta">—</span>
+            </div>
+            <div class="ndvi-row">
+              <span class="ndvi-label">Alerta radar</span>
+              <span style="font-size:11px;" id="ndvi-radar-nivel">—</span>
+            </div>
+          </div>
+          <div id="ndvi-alertas-row" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+            <div class="section-title" style="margin-bottom:4px;">⚠️ Alertas INMET</div>
+            <div style="font-size:11px;color:#fca130;line-height:1.5;" id="ndvi-alertas-texto">—</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Painel de detalhes -->
+      <div class="detail-panel" id="detail-panel">
+        <div class="detail-header">
+          <div>
+            <div class="detail-id" id="detail-id">—</div>
+            <div class="detail-city" id="detail-city">—</div>
+          </div>
+          <button class="detail-close" onclick="fecharDetalhes()">✕</button>
+        </div>
+        <div class="detail-row">
+          <span class="detail-lbl">NDVI Ref.</span>
+          <div class="detail-bar-wrap"><div class="detail-bar" id="detail-bar-ref" style="background:#52b788"></div></div>
+          <span class="detail-val" id="detail-val-ref">—</span>
+        </div>
+        <div class="detail-row">
+          <span class="detail-lbl">NDVI Atual</span>
+          <div class="detail-bar-wrap"><div class="detail-bar" id="detail-bar-atu"></div></div>
+          <span class="detail-val" id="detail-val-atu">—</span>
+        </div>
+        <div class="detail-delta" id="detail-delta">—</div>
+        <div class="detail-desc"  id="detail-desc">—</div>
+        <div id="detail-radar" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+          <div class="detail-row">
+            <span class="detail-lbl">Radar S-1 Δ</span>
+            <span class="detail-val" style="width:auto" id="detail-radar-val">—</span>
+          </div>
+        </div>
+        <div id="detail-alertas" style="display:none;margin-top:6px;padding-top:6px;border-top:1px solid var(--border)">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:3px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;">⚠️ Alertas INMET</div>
+          <div style="font-size:11px;color:#fca130;line-height:1.5;" id="detail-alertas-val">—</div>
+        </div>
+        <div class="detail-meta"  id="detail-meta">—</div>
+      </div>
+
+      <!-- Lista ocorrências -->
+      <div class="list-header">
+        <span class="list-title">Ocorrências detectadas</span>
+        <div class="filter-btns">
+          <button class="filter-btn active-todos" data-nivel="todos" onclick="setFiltro('todos')">Todos</button>
+          <button class="filter-btn" data-nivel="alto" onclick="setFiltro('alto')">Alto</button>
+          <button class="filter-btn" data-nivel="medio" onclick="setFiltro('medio')">Médio</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;padding:0 16px 8px;flex-shrink:0;">
+        <button class="filter-btn" style="flex:1;padding:5px 0;font-size:10px;" onclick="exportar('geojson')" title="Exportar GeoJSON">⬇ GeoJSON</button>
+        <button class="filter-btn" style="flex:1;padding:5px 0;font-size:10px;" onclick="exportar('csv')" title="Exportar CSV">⬇ CSV</button>
+      </div>
+      <div class="ocorrencias-list" id="list-sat">
+        <div class="empty-state"><div class="empty-icon">🛰️</div>Nenhuma ocorrência no período selecionado.</div>
+      </div>
+    </div>
+  </aside>
+
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="map-hint" id="map-hint">Clique no mapa para selecionar coordenadas</div>
+    <div class="period-pill" id="period-pill">Carregando...</div>
+    <div class="map-loading" id="map-loading">
+      <div class="spinner"></div>
+      <div class="loading-label">Consultando Sentinel-2...</div>
+    </div>
+    <div class="map-legend">
+      <div class="legend-title">Densidade de ocorrências</div>
+      <div class="legend-bar"></div>
+      <div class="legend-labels"><span>Baixa</span><span>Alta</span></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+const API = "http://localhost:8000";
+let selectedMarker   = null;
+let markersSat       = {};
+let heatLayer        = null;
+let ocorrenciasCache = [];
+let filtroAtual      = "todos";
+let sidebarAberta    = true;
+
+const PERIODO_LABEL = {
+  "15": "15 dias", "30": "30 dias", "60": "60 dias",
+  "90": "90 dias", "180": "6 meses", "365": "1 ano",
+};
+
+// -------------------------------------------------------
+// MAPA
+// -------------------------------------------------------
+const map = L.map("map", { zoomControl: true }).setView([-23.55, -46.63], 11);
+
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+  attribution: "© OpenStreetMap", maxZoom: 19,
+}).addTo(map);
+
+// Cluster de marcadores
+const clusterGroup = L.markerClusterGroup({
+  showCoverageOnHover: false,
+  maxClusterRadius: 50,
+  iconCreateFunction: cluster => {
+    const n   = cluster.getChildCount();
+    const cor = n >= 10 ? "#c1121f" : n >= 5 ? "#e76f00" : "#52b788";
+    return L.divIcon({
+      html: `<div style="background:${cor};width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:13px;font-family:'Syne',sans-serif;border:2px solid rgba(255,255,255,.7);box-shadow:0 2px 8px rgba(0,0,0,.45)">${n}</div>`,
+      className: "", iconSize: [34, 34], iconAnchor: [17, 17],
+    });
+  },
+});
+map.addLayer(clusterGroup);
+
+map.on("click", (e) => {
+  const { lat, lng } = e.latlng;
+  document.getElementById("sat-lat").value = lat.toFixed(6);
+  document.getElementById("sat-lng").value = lng.toFixed(6);
+  reverseGeocode(lat, lng, document.getElementById("sat-cidade"));
+  if (selectedMarker) map.removeLayer(selectedMarker);
+  selectedMarker = L.circleMarker([lat, lng], {
+    radius: 7, color: "#52b788", fillColor: "#52b788", fillOpacity: 0.45, weight: 2,
+  }).addTo(map).bindPopup("📍 Local selecionado").openPopup();
+});
+
+// -------------------------------------------------------
+// ÍCONES
+// -------------------------------------------------------
+function iconeSat(nivel) {
+  const cor = nivel === "alto" ? "#c1121f" : nivel === "medio" ? "#e76f00" : "#52b788";
+  const svg = `<svg xmlns='http://www.w3.org/2000/svg' width='26' height='34'>
+    <ellipse cx='13' cy='30' rx='6' ry='2.5' fill='rgba(0,0,0,.3)'/>
+    <path d='M13 2C6.5 2 2 7.5 2 13c0 8 11 21 11 21s11-13 11-21C24 7.5 19.5 2 13 2Z'
+      fill='${cor}' stroke='white' stroke-width='1.8'/>
+    <circle cx='13' cy='13' r='4.5' fill='white' opacity='.85'/>
+  </svg>`;
+  return L.divIcon({ html: svg, className: "", iconSize: [26, 34], iconAnchor: [13, 34], popupAnchor: [0, -36] });
+}
+
+// -------------------------------------------------------
+// STATUS HELPERS
+// -------------------------------------------------------
+function setStatus(id, msg, tipo) {
+  const el = document.getElementById(id);
+  el.className = `status-bar ${tipo}`;
+  el.innerHTML = msg;
+}
+
+// -------------------------------------------------------
+// SATÉLITE — Analisar por NDVI
+// -------------------------------------------------------
+async function analisarSatelite() {
+  const lat = parseFloat(document.getElementById("sat-lat").value);
+  const lng = parseFloat(document.getElementById("sat-lng").value);
+  if (isNaN(lat) || isNaN(lng)) {
+    setStatus("status-sat", "Clique no mapa ou insira as coordenadas.", "error"); return;
+  }
+
+  const btn = document.getElementById("btn-sat");
+  btn.disabled = true;
+  setStatus("status-sat", "🛰️ Consultando Copernicus CDSE...", "loading");
+  document.getElementById("ndvi-card").classList.remove("visible");
+  document.getElementById("map-loading").classList.add("visible");
+
+  try {
+    const dias    = document.getElementById("sat-dias").value;
+    const modoRef = document.getElementById("sat-modo-ref").value;
+    const cidade  = document.getElementById("sat-cidade").value;
+    const params  = new URLSearchParams({ latitude: lat, longitude: lng, dias_ref: dias, modo_ref: modoRef });
+    if (cidade) params.append("cidade", cidade);
+
+    const res  = await fetch(`${API}/satelite/analisar?${params}`, { method: "POST" });
+    const data = await res.json();
+
+    // Exibir card NDVI
+    const card = document.getElementById("ndvi-card");
+    card.classList.add("visible");
+    document.getElementById("ndvi-ref").textContent   = data.ndvi_ref?.toFixed(3)   ?? "—";
+    document.getElementById("ndvi-atual").textContent = data.ndvi_atual?.toFixed(3) ?? "—";
+    document.getElementById("ndvi-delta").textContent = data.ndvi_delta != null ? `−${data.ndvi_delta.toFixed(3)}` : "—";
+    document.getElementById("ndvi-produto").textContent = data.produto_sentinel2 || "—";
+    document.getElementById("ndvi-periodo-atu").textContent = data.periodo_atual || "—";
+    document.getElementById("ndvi-periodo-ref").textContent =
+      (data.periodo_ref || "—") + (data.modo_ref === "recente" ? " (período recente)" : " (ano anterior)");
+
+    const pct    = Math.min(100, (data.ndvi_delta / 0.4) * 100).toFixed(0);
+    const barCor = data.nivel === "alto" ? "#c1121f" : data.nivel === "medio" ? "#e76f00" : "#52b788";
+    document.getElementById("ndvi-bar").style.width      = pct + "%";
+    document.getElementById("ndvi-bar").style.background = barCor;
+
+    const nivelTexto = { alto: "🔴 Alto", medio: "🟠 Médio", normal: "🟢 Normal" };
+    document.getElementById("ndvi-nivel").textContent = nivelTexto[data.nivel] || data.nivel;
+    document.getElementById("ndvi-nivel").style.color =
+      data.nivel === "alto" ? "#ff7070" : data.nivel === "medio" ? "#fca130" : "#52b788";
+
+    // Radar Sentinel-1
+    const radarRow = document.getElementById("ndvi-radar-row");
+    if (data.radar?.vh_delta_db != null) {
+      radarRow.style.display = "block";
+      const db  = data.radar.vh_delta_db;
+      const cor = db > 2 ? "#ff7070" : db > 1 ? "#fca130" : "#52b788";
+      document.getElementById("ndvi-radar-delta").textContent = `${db > 0 ? "+" : ""}${db.toFixed(2)} dB`;
+      document.getElementById("ndvi-radar-delta").style.color = cor;
+      document.getElementById("ndvi-radar-nivel").textContent =
+        db > 2 ? "🔴 Alteração significativa" : db > 1 ? "🟠 Alteração moderada" : "🟢 Estável";
+      document.getElementById("ndvi-radar-nivel").style.color = cor;
+    } else {
+      radarRow.style.display = "none";
+    }
+
+    // Alertas INMET
+    const alertasRow = document.getElementById("ndvi-alertas-row");
+    if (data.alertas_dc) {
+      alertasRow.style.display = "block";
+      document.getElementById("ndvi-alertas-texto").textContent = data.alertas_dc;
+    } else {
+      alertasRow.style.display = "none";
+    }
+
+    if (data.queda_detectada) {
+      setStatus("status-sat",
+        `✅ Anomalia detectada! Confiança: ${(data.confianca*100).toFixed(0)}%<br><small>${data.descricao}</small>`,
+        "success");
+      await carregarDados();
+      if (selectedMarker) { map.removeLayer(selectedMarker); selectedMarker = null; }
+    } else {
+      setStatus("status-sat",
+        `ℹ️ Nenhuma anomalia significativa.<br><small>${data.descricao}</small>`,
+        "info");
+    }
+  } catch (err) {
+    setStatus("status-sat", `❌ Erro: verifique se o backend está rodando em ${API}`, "error");
+  } finally {
+    btn.disabled = false;
+    document.getElementById("map-loading").classList.remove("visible");
+  }
+}
+
+// -------------------------------------------------------
+// EXPORTAR GeoJSON / CSV
+// -------------------------------------------------------
+function exportar(formato) {
+  const dias = document.getElementById("mapa-periodo").value;
+  window.location.href = `${API}/ocorrencias/exportar?formato=${formato}&dias=${dias}`;
+}
+
+// -------------------------------------------------------
+// CARREGAR TODOS OS DADOS
+// -------------------------------------------------------
+function atualizarHeatmap(ocorrencias) {
+  if (heatLayer) map.removeLayer(heatLayer);
+  if (!ocorrencias.length) return;
+  const pontos = ocorrencias.map(oc => [oc.latitude, oc.longitude, oc.confianca || 0.4]);
+  heatLayer = L.heatLayer(pontos, {
+    radius:  40,
+    blur:    30,
+    maxZoom: 14,
+    gradient: { 0.0: "#00c853", 0.35: "#ffd600", 0.65: "#ff6d00", 1.0: "#d50000" },
+  }).addTo(map);
+}
+
+async function carregarDados() {
+  const dias = document.getElementById("mapa-periodo").value;
+  try {
+    const [ocRes, statsRes] = await Promise.all([
+      fetch(`${API}/ocorrencias?dias=${dias}`),
+      fetch(`${API}/stats`),
+    ]);
+    const ocorrencias = await ocRes.json();
+    const stats       = await statsRes.json();
+
+    document.getElementById("stat-sat").textContent  = stats.confirmados;
+    document.getElementById("stat-conf").textContent =
+      stats.media_confianca ? `${(stats.media_confianca * 100).toFixed(0)}%` : "—";
+
+    ocorrenciasCache = ocorrencias;
+    aplicarFiltro();
+
+    const label = PERIODO_LABEL[dias] || `${dias} dias`;
+    document.getElementById("period-pill").textContent =
+      `Últimos ${label} · ${ocorrencias.length} ocorrência(s)`;
+  } catch (err) {
+    console.warn("Backend indisponível:", err.message);
+  }
+}
+
+function setFiltro(nivel) {
+  filtroAtual = nivel;
+  document.querySelectorAll(".filter-btn").forEach(b => {
+    b.className = "filter-btn" + (b.dataset.nivel === nivel ? ` active-${nivel}` : "");
+  });
+  aplicarFiltro();
+}
+
+function aplicarFiltro() {
+  const lista = filtroAtual === "todos"
+    ? ocorrenciasCache
+    : ocorrenciasCache.filter(oc => {
+        const n = oc.ndvi_delta > 0.20 ? "alto" : "medio";
+        return n === filtroAtual;
+      });
+  renderSat(lista);
+  atualizarHeatmap(lista);
+}
+
+function renderSat(ocorrencias) {
+  clusterGroup.clearLayers();
+  markersSat = {};
+
+  const lista = document.getElementById("list-sat");
+  if (!ocorrencias.length) {
+    lista.innerHTML = `<div class="empty-state"><div class="empty-icon">🛰️</div>Nenhuma ocorrência por satélite ainda.</div>`;
+    return;
+  }
+  lista.innerHTML = "";
+  ocorrencias.forEach(oc => {
+    const nivel = oc.ndvi_delta > 0.20 ? "alto" : oc.ndvi_delta > 0.10 ? "medio" : "normal";
+
+    const m = L.marker([oc.latitude, oc.longitude], { icon: iconeSat(nivel) })
+      .bindPopup(`
+        <div class="popup-inner">
+          <strong style="color:#52b788">#${oc.id} — Satélite</strong>
+          <div style="margin:4px 0">${oc.descricao || "Sem descrição"}</div>
+          <div class="popup-sub">NDVI Δ: ${oc.ndvi_delta?.toFixed(3) ?? "—"}</div>
+          <div class="popup-sub">Confiança: ${(oc.confianca * 100).toFixed(0)}%</div>
+          <div class="popup-sub">📍 ${oc.latitude.toFixed(4)}, ${oc.longitude.toFixed(4)}</div>
+          ${oc.cidade ? `<div class="popup-sub">🏙️ ${oc.cidade}</div>` : ""}
+          <div class="popup-sub">🕐 ${new Date(oc.criado_em).toLocaleString("pt-BR")}</div>
+        </div>`);
+    m.on("click", () => mostrarDetalhes(oc));
+    clusterGroup.addLayer(m);
+    markersSat[oc.id] = m;
+
+    const card = document.createElement("div");
+    card.className = "oc-card";
+    const confPct   = (oc.confianca * 100).toFixed(0);
+    const confClass = oc.confianca >= 0.7 ? "conf-red" : oc.confianca >= 0.5 ? "conf-amber" : "conf-green";
+    const badgeNivel = nivel === "alto" ? "badge-alto" : nivel === "medio" ? "badge-medio" : "badge-sat";
+    card.innerHTML = `
+      <div class="card-top">
+        <span class="card-id">#${oc.id} · ${new Date(oc.criado_em).toLocaleDateString("pt-BR")}</span>
+        <span class="badge ${badgeNivel}">${nivel}</span>
+      </div>
+      <div class="card-desc">${oc.descricao || "Sem descrição"}</div>
+      ${oc.cidade ? `<div class="card-coord">🏙️ ${oc.cidade}</div>` : ""}
+      <div class="card-coord">📍 ${oc.latitude.toFixed(4)}, ${oc.longitude.toFixed(4)}</div>
+      ${oc.ndvi_delta != null ? `<div class="card-coord" style="margin-top:2px">NDVI Δ: ${oc.ndvi_delta.toFixed(3)} · Confiança: ${confPct}%</div>` : ""}
+      <div class="card-conf-bar"><div class="card-conf-fill ${confClass}" style="width:${confPct}%"></div></div>
+    `;
+    card.onclick = () => {
+      map.flyTo([oc.latitude, oc.longitude], 15, { duration: 1 });
+      if (markersSat[oc.id]) markersSat[oc.id].openPopup();
+      mostrarDetalhes(oc);
+    };
+    lista.appendChild(card);
+  });
+}
+
+// -------------------------------------------------------
+// SIDEBAR TOGGLE
+// -------------------------------------------------------
+function toggleSidebar() {
+  sidebarAberta = !sidebarAberta;
+  const aside = document.querySelector("aside");
+  const btn   = document.getElementById("sidebar-toggle");
+  aside.style.width   = sidebarAberta ? "350px" : "0";
+  btn.style.left      = sidebarAberta ? "350px" : "0";
+  btn.textContent     = sidebarAberta ? "‹" : "›";
+  setTimeout(() => map.invalidateSize(), 260);
+}
+
+// -------------------------------------------------------
+// DETALHE DE OCORRÊNCIA
+// -------------------------------------------------------
+function mostrarDetalhes(oc) {
+  const nivel = oc.ndvi_delta > 0.20 ? "alto" : "medio";
+  const cor   = nivel === "alto" ? "#ff7070" : "#fca130";
+
+  document.getElementById("detail-id").textContent   = `#${oc.id} · ${nivel.toUpperCase()}`;
+  document.getElementById("detail-id").style.color   = cor;
+  document.getElementById("detail-city").textContent =
+    (oc.cidade ? oc.cidade + " · " : "") + `${oc.latitude.toFixed(4)}, ${oc.longitude.toFixed(4)}`;
+
+  const pRef = Math.min(100, ((oc.ndvi_ref  || 0) * 100));
+  const pAtu = Math.min(100, ((oc.ndvi_atual || 0) * 100));
+  document.getElementById("detail-bar-ref").style.width      = pRef + "%";
+  document.getElementById("detail-bar-atu").style.width      = pAtu + "%";
+  document.getElementById("detail-bar-atu").style.background = cor;
+  document.getElementById("detail-val-ref").textContent = (oc.ndvi_ref   || 0).toFixed(3);
+  document.getElementById("detail-val-atu").textContent = (oc.ndvi_atual || 0).toFixed(3);
+
+  document.getElementById("detail-delta").textContent =
+    `Δ = −${(oc.ndvi_delta || 0).toFixed(3)}  ·  Confiança: ${((oc.confianca || 0) * 100).toFixed(0)}%`;
+  document.getElementById("detail-desc").textContent  = oc.descricao || "Sem descrição";
+
+  // Radar Sentinel-1
+  const detRadar = document.getElementById("detail-radar");
+  if (oc.radar_vh_delta != null) {
+    detRadar.style.display = "block";
+    const db  = oc.radar_vh_delta;
+    const cor = db > 2 ? "#ff7070" : db > 1 ? "#fca130" : "#52b788";
+    const el  = document.getElementById("detail-radar-val");
+    el.textContent = `${db > 0 ? "+" : ""}${db.toFixed(2)} dB ${db > 2 ? "⚠️" : ""}`;
+    el.style.color = cor;
+  } else {
+    detRadar.style.display = "none";
+  }
+
+  // Alertas INMET
+  const detAlertas = document.getElementById("detail-alertas");
+  if (oc.alertas_dc) {
+    detAlertas.style.display = "block";
+    document.getElementById("detail-alertas-val").textContent = oc.alertas_dc;
+  } else {
+    detAlertas.style.display = "none";
+  }
+
+  document.getElementById("detail-meta").textContent =
+    `🕐 ${new Date(oc.criado_em).toLocaleString("pt-BR")}` +
+    (oc.periodo_atual ? `  ·  Atual: ${oc.periodo_atual}` : "");
+
+  document.getElementById("detail-panel").classList.add("visible");
+}
+
+function fecharDetalhes() {
+  document.getElementById("detail-panel").classList.remove("visible");
+}
+
+// -------------------------------------------------------
+// GEOCODING — Nominatim (OpenStreetMap, gratuito)
+// -------------------------------------------------------
+function debounce(fn, delay) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
+}
+
+async function reverseGeocode(lat, lon, inputEl) {
+  try {
+    const res  = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&addressdetails=1`,
+      { headers: { "Accept-Language": "pt-BR" } }
+    );
+    const data = await res.json();
+    const a    = data.address || {};
+    const bairro = a.suburb || a.neighbourhood || a.quarter || "";
+    const cidade = a.city   || a.town          || a.village || a.municipality || "";
+    const partes = [cidade, bairro].filter(Boolean);
+    if (partes.length) inputEl.value = partes.join(" — ");
+  } catch {}
+}
+
+function setupAutocomplete(inputId, listId) {
+  const input = document.getElementById(inputId);
+  const list  = document.getElementById(listId);
+  const isSat = inputId === "sat-cidade";
+
+  const search = debounce(async (query) => {
+    if (query.length < 3) { list.style.display = "none"; return; }
+    try {
+      const res   = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&addressdetails=1&limit=5&countrycodes=br`,
+        { headers: { "Accept-Language": "pt-BR" } }
+      );
+      const items = await res.json();
+      if (!items.length) { list.style.display = "none"; return; }
+      list.innerHTML = "";
+      items.forEach(item => {
+        const a      = item.address || {};
+        const bairro = a.suburb || a.neighbourhood || a.quarter || "";
+        const cidade = a.city   || a.town          || a.village || a.municipality || "";
+        const partes = [cidade, bairro].filter(Boolean);
+        const texto  = partes.length ? partes.join(" — ") : item.display_name.split(",").slice(0, 2).join(", ").trim();
+        const div    = document.createElement("div");
+        div.className   = "suggestion-item";
+        div.textContent = texto;
+        div.onmousedown = () => {
+          input.value = texto;
+          list.style.display = "none";
+
+          const lat = parseFloat(item.lat);
+          const lon = parseFloat(item.lon);
+          if (isNaN(lat) || isNaN(lon)) return;
+
+          // Atualiza coordenadas
+          document.getElementById(isSat ? "sat-lat" : "wz-lat").value = lat.toFixed(6);
+          document.getElementById(isSat ? "sat-lng" : "wz-lng").value = lon.toFixed(6);
+
+          // Voa para o local e coloca marcador
+          map.flyTo([lat, lon], 15, { duration: 1 });
+          if (selectedMarker) map.removeLayer(selectedMarker);
+          const cor = isSat ? "#52b788" : "#fca130";
+          selectedMarker = L.circleMarker([lat, lon], {
+            radius: 7, color: cor, fillColor: cor, fillOpacity: 0.45, weight: 2,
+          }).addTo(map).bindPopup("📍 Local selecionado").openPopup();
+        };
+        list.appendChild(div);
+      });
+      list.style.display = "block";
+    } catch { list.style.display = "none"; }
+  }, 350);
+
+  input.addEventListener("input", () => search(input.value));
+  input.addEventListener("blur",  () => setTimeout(() => { list.style.display = "none"; }, 200));
+  input.addEventListener("focus", () => { if (input.value.length >= 3) search(input.value); });
+}
+
+setupAutocomplete("sat-cidade", "sat-cidade-list");
+
+// -------------------------------------------------------
+// INICIAR
+// -------------------------------------------------------
+carregarDados();
+setInterval(carregarDados, 30000);
+</script>
+</body>
+</html>

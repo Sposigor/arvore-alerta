@@ -1,3 +1,66 @@
-Videos/
-bd/
+# =============================================================
+# ArvoreAlerta — .gitignore
+# =============================================================
+
+# --- Credenciais (NUNCA versionar) ---------------------------
+.env
+*.env
+!*.env.example
+
+# --- Banco de dados ------------------------------------------
+*.db
+*.sqlite
+*.sqlite3
+
+# --- Python --------------------------------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+
+# Ambientes virtuais
+.venv/
 venv/
+env/
+ENV/
+
+# Distribuição / empacotamento
+*.egg-info/
+dist/
+build/
+*.egg
+
+# --- Ferramentas de desenvolvimento --------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# --- Sistema operacional ------------------------------------
+.DS_Store
+.DS_Store?
+._*
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# --- Logs ---------------------------------------------------
+*.log
+logs/
+
+# --- Arquivos de mídia pesados ------------------------------
+Videos/
+*.mp4
+*.mkv
+*.avi
+*.mov
+
+# --- Pastas internas do Claude Code -------------------------
+.claude/
+
+# --- Arquivos e pastas legados deste repositório ------------
+bd/
+static/
+templates/
