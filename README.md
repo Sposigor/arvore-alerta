@@ -25,11 +25,13 @@ graph LR
     end
 
     subgraph BE["⚙️ Backend — Railway (FastAPI)"]
-        API["main.py\nREST API"]
-        CRON["APScheduler\n⏱ 8 locais / hora"]
+        API["routers/\nsatelite · usuario\nocorrencias · sistema"]
+        SVC["services/\nndvi · radar\nalertas · copernicus"]
+        CRON["scheduler.py\n⏱ 8 locais / hora"]
         DB[("SQLite\narvore_alerta.db")]
-        API --- DB
-        CRON --> API
+        API --> SVC
+        SVC --- DB
+        CRON --> SVC
     end
 
     subgraph ESA["🛰️ Copernicus CDSE — ESA"]
@@ -92,23 +94,36 @@ flowchart LR
 ```
 projeto_tcc/
 ├── backend/
-│   ├── main.py              # API FastAPI — lógica principal + scheduler
-│   ├── requirements.txt     # Dependências Python
-│   ├── .env.example         # Template de credenciais (versionar)
-│   ├── .env                 # Credenciais reais (não versionar)
-│   ├── arvore_alerta.db     # Banco SQLite (criado automaticamente, não versionar)
+│   ├── app/
+│   │   ├── main.py              # FastAPI app + lifespan (ponto de entrada)
+│   │   ├── config.py            # Variáveis de ambiente e constantes globais
+│   │   ├── database.py          # init_db e get_db (SQLite)
+│   │   ├── scheduler.py         # APScheduler — cron de monitoramento horário
+│   │   ├── routers/
+│   │   │   ├── satelite.py      # POST /satelite/analisar
+│   │   │   ├── usuario.py       # /usuario/reportar · /usuario/reportes
+│   │   │   ├── ocorrencias.py   # GET/DELETE /ocorrencias · /exportar
+│   │   │   └── sistema.py       # GET /stats · /cron/status
+│   │   └── services/
+│   │       ├── copernicus.py    # OAuth2 CDSE + busca Sentinel-2
+│   │       ├── ndvi.py          # Cálculo NDVI via openEO + simulado
+│   │       ├── radar.py         # Retroespalhamento VH — Sentinel-1 GRD
+│   │       └── alertas.py       # Alertas ativos — API INMET
 │   └── scripts/
-│       ├── seed.py          # Popula banco com dados simulados (demo)
-│       └── seed_real.py     # Popula banco com NDVI real via Copernicus
+│       ├── seed.py              # Popula banco com dados simulados (demo)
+│       └── seed_real.py         # Popula banco com NDVI real via Copernicus
 ├── frontend/
-│   └── index.html           # Interface web (mapa + análise NDVI)
+│   └── index.html               # Interface web (mapa + análise NDVI)
 ├── docs/
-│   └── diagrama.html        # Diagrama interativo para apresentação
+│   └── diagrama.html            # Diagrama interativo para apresentação
 ├── .github/
 │   └── workflows/
-│       ├── deploy-frontend.yml   # CI/CD → GitHub Pages
-│       └── claude.yml            # Integração @claude em PRs/issues
-├── railway.toml             # Configuração de deploy (Railway)
+│       ├── deploy-frontend.yml  # CI/CD → GitHub Pages
+│       └── claude.yml           # Integração @claude em PRs/issues
+├── requirements.txt             # Dependências Python
+├── .env.example                 # Template de credenciais (versionar)
+├── nixpacks.toml                # Configuração de build (Railway/Nixpacks)
+├── railway.toml                 # Configuração de deploy (Railway)
 ├── .gitignore
 └── README.md
 ```
@@ -155,9 +170,9 @@ pip install -r requirements.txt
 ### 4. Configurar credenciais Copernicus
 
 ```bash
-cd backend
-cp .env.example .env
-# Edite .env com seu editor preferido e preencha suas credenciais
+# Na raiz do projeto
+cp .env.example backend/.env
+# Edite backend/.env com seu editor preferido e preencha suas credenciais
 ```
 
 > Sem o `.env`, o sistema roda em **modo simulado** — todos os valores de NDVI são gerados aleatoriamente. Útil para testar a interface sem conta Copernicus.
@@ -166,7 +181,7 @@ cp .env.example .env
 
 ```bash
 # Na pasta backend/
-uvicorn main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8000
 ```
 
 API disponível em: http://localhost:8000  
