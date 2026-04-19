@@ -1,7 +1,11 @@
 providers = ["python"]
 
 [phases.install]
-cmds = ["python -m pip install -r backend/requirements.txt"]
+cmds = [
+  "python -m pip install --upgrade pip",
+  "python -m pip install fastapi 'uvicorn[standard]' python-multipart pydantic httpx python-dotenv 'apscheduler>=3.10,<4.0'",
+  "python -m pip install openeo numpy || echo '[aviso] openeo/numpy nao instalado — modo simulado ativo'"
+]
 
 [start]
 cmd = "cd backend && python -m uvicorn main:app --host 0.0.0.0 --port $PORT"
