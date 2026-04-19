@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+python-multipart
+pydantic
+httpx
+python-dotenv
+openeo
+numpy
+apscheduler>=3.10,<4.0
