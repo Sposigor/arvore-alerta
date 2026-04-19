@@ -60,6 +60,9 @@ Videos/
 # --- Pastas internas do Claude Code -------------------------
 .claude/
 
+# --- Railway / deploy local --------------------------------
+.railway/
+
 # --- Arquivos e pastas legados deste repositório ------------
 bd/
 static/

@@ -2,7 +2,7 @@
 
 Sistema de detecção e mapeamento de quedas de árvores utilizando imagens de satélite Sentinel-2 (Copernicus CDSE) e processamento de índice de vegetação NDVI.
 
-**Stack:** FastAPI · SQLite · Leaflet.js · openEO · Copernicus CDSE (Sentinel-2 L2A)
+**Stack:** FastAPI · SQLite · Leaflet.js · openEO · Copernicus CDSE (Sentinel-2 L2A · Sentinel-1 GRD) · APScheduler · INMET
 
 ---
 
@@ -10,7 +10,80 @@ Sistema de detecção e mapeamento de quedas de árvores utilizando imagens de s
 
 ArvoreAlerta é um sistema web que detecta automaticamente possíveis quedas de árvores a partir da análise de imagens de satélite. O sistema compara o índice de vegetação NDVI de um ponto geográfico em dois períodos distintos — se houver queda brusca, uma ocorrência é registrada com nível de confiança.
 
-O projeto foi desenvolvido como Trabalho de Conclusão de Curso (TCC) e demonstra a viabilidade de usar dados públicos e gratuitos do programa Copernicus (ESA/União Europeia) para monitoramento ambiental urbano.
+O projeto foi desenvolvido como Trabalho de Conclusão de Curso (TCC) e demonstra a viabilidade de usar dados públicos e gratuitos do programa Copernicus (ESA/União Europeia) para monitoramento ambiental urbano e rastreamento de desmatamento.
+
+---
+
+## Arquitetura do Sistema
+
+### Visão Geral dos Componentes
+
+```mermaid
+graph LR
+    subgraph FE["🌐 Frontend — GitHub Pages"]
+        UI["Leaflet.js · Heatmap\nClustering · Nominatim"]
+    end
+
+    subgraph BE["⚙️ Backend — Railway (FastAPI)"]
+        API["main.py\nREST API"]
+        CRON["APScheduler\n⏱ 8 locais / hora"]
+        DB[("SQLite\narvore_alerta.db")]
+        API --- DB
+        CRON --> API
+    end
+
+    subgraph ESA["🛰️ Copernicus CDSE — ESA"]
+        S2["Sentinel-2 L2A\nNDVI  B04 · B08"]
+        S1["Sentinel-1 GRD\nRadar  VH"]
+        OEO["openEO\nnuvem de processamento"]
+        S2 --- OEO
+        S1 --- OEO
+    end
+
+    INMET["⚠️ INMET\nAlertas meteorológicos"]
+    NOM["🗺️ Nominatim\nGeocoding reverso"]
+
+    FE <-->|"REST / JSON"| API
+    FE -->|geocoding| NOM
+    API <-->|"OAuth2 + openEO"| OEO
+    API -->|HTTP| INMET
+```
+
+### Fluxo de Detecção de Queda
+
+```mermaid
+flowchart TD
+    A["📍 Clique no mapa\nlat, lon"] --> B["POST /satelite/analisar"]
+    B --> C{Credenciais\nCopernicus?}
+    C -->|Não| D["NDVI simulado\n(modo demo)"]
+    C -->|Sim| E["🔑 Token OAuth2\nCopernicus CDSE"]
+    E --> F["⚡ Processamento paralelo"]
+    F --> G["🛰️ openEO — Sentinel-2\nNDVI referência"]
+    F --> H["🛰️ openEO — Sentinel-2\nNDVI atual"]
+    F --> I["📡 openEO — Sentinel-1\nRetroespalhamento VH"]
+    F --> J["⚠️ INMET\nAlertas ativos"]
+    G & H --> K["Δ NDVI = ref − atual"]
+    K --> L{Classificação}
+    L -->|"Δ > 0.20"| M["🔴 Alto\n60–99% confiança"]
+    L -->|"Δ 0.10–0.20"| N["🟠 Médio\n40–60% confiança"]
+    L -->|"Δ ≤ 0.10"| O["🟢 Normal\nsem registro"]
+    M & N --> P[("💾 INSERT ocorrencia\nSQLite")]
+    P --> Q["📌 Marcador no mapa\n+ Heatmap atualizado"]
+```
+
+### Monitoramento Automático — Rotação de Locais
+
+```mermaid
+flowchart LR
+    T["⏱️ A cada hora\n(APScheduler)"] --> B["executar_seed_automatico"]
+    B --> C["🔑 Token OAuth2"]
+    C --> D["Seleciona 8 locais\ndo cursor atual\n(0 → 49 → 0 ...)"]
+    D --> E["Para cada local\nNDVI + Radar + INMET"]
+    E --> F{Queda\ndetectada?}
+    F -->|Sim| G["💾 INSERT\nocorrencia"]
+    F -->|Não| H["Log: normal"]
+    G & H --> I["Cursor += 8\nCiclo: ~6 horas"]
+```
 
 ---
 
@@ -19,16 +92,23 @@ O projeto foi desenvolvido como Trabalho de Conclusão de Curso (TCC) e demonstr
 ```
 projeto_tcc/
 ├── backend/
-│   ├── main.py              # API FastAPI — lógica principal
+│   ├── main.py              # API FastAPI — lógica principal + scheduler
 │   ├── requirements.txt     # Dependências Python
 │   ├── .env.example         # Template de credenciais (versionar)
-│   ├── .env                 # Credenciais reais (não versionar — criar a partir do .env.example)
+│   ├── .env                 # Credenciais reais (não versionar)
 │   ├── arvore_alerta.db     # Banco SQLite (criado automaticamente, não versionar)
 │   └── scripts/
 │       ├── seed.py          # Popula banco com dados simulados (demo)
 │       └── seed_real.py     # Popula banco com NDVI real via Copernicus
 ├── frontend/
 │   └── index.html           # Interface web (mapa + análise NDVI)
+├── docs/
+│   └── diagrama.html        # Diagrama interativo para apresentação
+├── .github/
+│   └── workflows/
+│       ├── deploy-frontend.yml   # CI/CD → GitHub Pages
+│       └── claude.yml            # Integração @claude em PRs/issues
+├── railway.toml             # Configuração de deploy (Railway)
 ├── .gitignore
 └── README.md
 ```
@@ -124,9 +204,11 @@ python scripts/seed_real.py
 
 1. **Selecionar período** — o seletor no topo do painel filtra as ocorrências exibidas no mapa (15 dias até 1 ano)
 2. **Analisar um ponto** — clique em qualquer lugar do mapa para preencher as coordenadas, ajuste a janela de referência NDVI e clique em **Consultar Sentinel-2**
-3. **Ver detalhes** — clique em qualquer marcador ou card da lista para abrir o painel de detalhes com as barras de NDVI
-4. **Filtrar por severidade** — botões **Todos / Alto / Médio** acima da lista atualizam o mapa e a listagem simultaneamente
-5. **Expandir mapa** — o botão `‹` na borda do painel recolhe a sidebar
+3. **Comparação de referência** — escolha entre "mesmo período ano anterior" ou "período imediatamente anterior"
+4. **Ver detalhes** — clique em qualquer marcador ou card da lista para abrir o painel de detalhes com NDVI, radar e alertas INMET
+5. **Filtrar por severidade** — botões **Todos / Alto / Médio** acima da lista atualizam o mapa e a listagem simultaneamente
+6. **Exportar dados** — botões **⬇ GeoJSON** e **⬇ CSV** baixam as ocorrências do período selecionado
+7. **Expandir mapa** — o botão `‹` na borda do painel recolhe a sidebar
 
 ---
 
@@ -160,6 +242,16 @@ O sistema compara o NDVI do período atual com o mesmo período do ano anterior.
 | 0.10 – 0.20 | Médio | 40–60% |
 | ≤ 0.10 | Normal | — |
 
+**Análise complementar — Radar Sentinel-1:**
+
+O Sentinel-1 usa radar SAR (Synthetic Aperture Radar) e penetra nuvens, coletando dados independente de condições climáticas. O sistema calcula a variação do retroespalhamento VH (vertical-horizontal) em dB:
+
+| Δ VH (dB) | Interpretação |
+|-----------|--------------|
+| > 2 dB | Alteração significativa de cobertura |
+| 1 – 2 dB | Alteração moderada |
+| < 1 dB | Cobertura estável |
+
 ---
 
 ## API REST
@@ -180,16 +272,17 @@ Separar a API do frontend permite que qualquer outra interface (app mobile, pain
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
-| `POST` | `/satelite/analisar` | Consulta Sentinel-2, calcula NDVI e registra se anomalia |
+| `POST` | `/satelite/analisar` | Consulta Sentinel-2 + Sentinel-1, calcula NDVI e registra se anomalia |
 
 **Parâmetros (query string):**
 
-| Parâmetro | Tipo | Obrigatório | Descrição |
-|-----------|------|-------------|-----------|
-| `latitude` | float | Sim | Latitude do ponto |
-| `longitude` | float | Sim | Longitude do ponto |
-| `cidade` | string | Não | Nome da cidade/bairro |
-| `dias_ref` | int | Não (padrão: 30) | Janela de referência NDVI em dias |
+| Parâmetro | Tipo | Padrão | Descrição |
+|-----------|------|--------|-----------|
+| `latitude` | float | — | Latitude do ponto |
+| `longitude` | float | — | Longitude do ponto |
+| `cidade` | string | null | Nome da cidade/bairro |
+| `dias_ref` | int | 30 | Janela de referência NDVI em dias |
+| `modo_ref` | string | `ano_anterior` | `ano_anterior` ou `recente` |
 
 **Exemplo de resposta:**
 ```json
@@ -198,10 +291,15 @@ Separar a API do frontend permite que qualquer outra interface (app mobile, pain
   "ndvi_ref": 0.631,
   "ndvi_atual": 0.312,
   "ndvi_delta": 0.319,
+  "periodo_atual": "20/03/2026 – 19/04/2026",
+  "periodo_ref": "20/03/2025 – 19/04/2025",
+  "modo_ref": "ano_anterior",
   "nivel": "alto",
   "queda_detectada": true,
   "confianca": 0.88,
   "descricao": "Queda brusca de NDVI detectada (Δ=0.319). NDVI atual: 0.312.",
+  "radar": { "vh_ref": 0.000412, "vh_atual": 0.000185, "vh_delta_db": 3.47 },
+  "alertas_dc": "[Laranja] Chuvas intensas previstas para os próximos 2 dias",
   "ocorrencia_id": 42
 }
 ```
@@ -211,32 +309,64 @@ Separar a API do frontend permite que qualquer outra interface (app mobile, pain
 | Método | Rota | Parâmetros | Descrição |
 |--------|------|------------|-----------|
 | `GET` | `/ocorrencias` | `?dias=30&limite=100` | Lista ocorrências filtradas por período |
+| `GET` | `/ocorrencias/exportar` | `?formato=geojson\|csv&dias=30` | Exporta em GeoJSON ou CSV |
 | `DELETE` | `/ocorrencias/{id}` | — | Remove uma ocorrência |
 
-#### Estatísticas
+#### Estatísticas e Monitoramento
 
 | Método | Rota | Descrição |
 |--------|------|-----------|
 | `GET` | `/stats` | Total de ocorrências, confirmados e confiança média |
+| `GET` | `/cron/status` | Status do scheduler automático, cursor e estimativa de créditos |
 
-**Exemplo `/stats`:**
+**Exemplo `/cron/status`:**
 ```json
 {
-  "total": 53,
-  "confirmados": 53,
-  "media_confianca": 0.79,
-  "reportes_usuario": 0
+  "ativo": true,
+  "locais_total": 50,
+  "lote_por_hora": 8,
+  "cursor_atual": 16,
+  "ciclo_completo_h": 7,
+  "creditos_mes_est": 11520,
+  "jobs": [{ "id": "seed_automatico", "proxima_exec": "2026-04-19 21:00:00-03:00" }],
+  "modo_openeo": true
 }
 ```
 
 ---
 
+## Monitoramento Automático
+
+O backend inclui um scheduler (APScheduler) que inicia automaticamente com o servidor e processa locais em rotação contínua sem intervenção manual.
+
+**50 locais monitorados:**
+
+| Categoria | Quantidade | Exemplos |
+|-----------|-----------|---------|
+| Capitais e metrópoles | 15 | São Paulo, Manaus, Belém, Brasília |
+| Hotspots Amazônia (PRODES/INPE) | 22 | Altamira-PA, Colniza-MT, Ji-Paraná-RO, Lábrea-AM |
+| Cerrado / Matopiba | 6 | Barreiras-BA, Araguaína-TO, Imperatriz-MA |
+| Mata Atlântica | 4 | Santos-SP, Vitória-ES, Joinville-SC |
+| Acre / Amazônia Sul | 3 | Cruzeiro do Sul, Lábrea, Humaitá |
+
+**Orçamento de créditos openEO:**
+
+| Recurso | Valor |
+|---------|-------|
+| Free tier Copernicus | 15.000 créditos/mês |
+| Custo por análise NDVI | ~2 créditos |
+| Lote por hora | 8 locais |
+| Consumo estimado | ~11.520 créditos/mês |
+| Margem de segurança | ~23% |
+
+---
+
 ## Modos de Operação
 
-| Modo | Configuração | NDVI | Uso |
-|------|-------------|------|-----|
-| **Simulado** | Sem `.env` | Gerado aleatoriamente | Testes locais, demo de interface |
-| **Real** | Com `.env` + openEO | Calculado do Sentinel-2 | Produção, TCC com dados reais |
+| Modo | Configuração | NDVI | Scheduler | Uso |
+|------|-------------|------|-----------|-----|
+| **Simulado** | Sem `.env` | Aleatório | Inativo | Testes, demo de interface |
+| **Real** | Com `.env` + openEO | Sentinel-2 real | Ativo | Produção, TCC com dados reais |
 
 O sistema detecta automaticamente qual modo usar. Se as credenciais estiverem configuradas e o pacote `openeo` instalado, usa dados reais com fallback automático para simulação em caso de erro (ex: nuvens, sem imagens no período).
 
@@ -250,7 +380,7 @@ O sistema detecta automaticamente qual modo usar. Se as credenciais estiverem co
 | Download de bandas via S3 | 12 TB/mês |
 | Processamento openEO | 15.000 créditos/mês |
 
-**Para este projeto:** o consumo típico é de ~2 créditos openEO por análise. O free tier cobre milhares de consultas mensais.
+**Para este projeto:** o consumo típico é de ~2 créditos openEO por análise NDVI. O scheduler automático consome ~11.500 créditos/mês — dentro do free tier com margem de segurança.
 
 ---
 
@@ -259,13 +389,18 @@ O sistema detecta automaticamente qual modo usar. Se as credenciais estiverem co
 **Backend não conecta ao Copernicus:**
 ```
 Verifique se CDSE_USER e CDSE_PASS estão corretos no .env
-Teste a autenticação: python -c "from dotenv import load_dotenv; load_dotenv(); import os, httpx; r = httpx.post('https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token', data={'grant_type':'password','client_id':'cdse-public','username':os.getenv('CDSE_USER'),'password':os.getenv('CDSE_PASS')}); print(r.status_code)"
+Teste a autenticação:
+  python -c "from dotenv import load_dotenv; load_dotenv(); import os, httpx
+  r = httpx.post('https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token',
+  data={'grant_type':'password','client_id':'cdse-public',
+  'username':os.getenv('CDSE_USER'),'password':os.getenv('CDSE_PASS')}); print(r.status_code)"
 ```
 
 **NDVI retorna simulado mesmo com credenciais:**
 ```
 Verifique se openeo e numpy estão instalados: pip install openeo numpy
 A resposta da API inclui o motivo no campo "produto_sentinel2"
+Confirme o scheduler em: GET /cron/status
 ```
 
 **Frontend não conecta ao backend:**
@@ -279,7 +414,71 @@ Verifique erros no console do navegador (F12)
 A região pode ter cobertura de nuvens > 20% no período
 Aumente a janela de referência NDVI para 60 ou 90 dias
 Regiões de alta nebulosidade (ex: Amazônia na estação chuvosa) podem não ter dados
+Use modo_ref=recente para comparar com período mais próximo
 ```
+
+---
+
+## Deploy em Produção
+
+### Arquitetura recomendada (gratuita / barata)
+
+```
+GitHub (código-fonte)
+  ├── GitHub Pages  → frontend (index.html)     — grátis
+  ├── Railway       → backend (FastAPI + cron)  — ~$5/mês
+  └── GitHub Actions → CI/CD + @claude          — grátis
+```
+
+### 1. Backend — Railway
+
+[railway.app](https://railway.app) — suporta Python nativamente, volumes persistentes para o SQLite e deploy automático via GitHub.
+
+```bash
+# Instale o CLI do Railway
+npm i -g @railway/cli
+
+# Login e novo projeto
+railway login
+railway init
+
+# Configure as variáveis de ambiente no painel Railway:
+# CDSE_USER, CDSE_PASS, DB_PATH=/data/arvore_alerta.db
+
+# Deploy
+railway up
+```
+
+> **Volume SQLite:** no painel Railway, crie um volume em `/data` e defina `DB_PATH=/data/arvore_alerta.db` como variável de ambiente. Isso garante que o banco persista entre deploys.
+
+O cron de monitoramento horário **inicia automaticamente** junto com o backend quando `CDSE_USER` e `CDSE_PASS` estão configurados. Monitore em: `GET /cron/status`.
+
+### 2. Frontend — GitHub Pages
+
+O deploy do frontend é automático via GitHub Actions a cada push em `main`.
+
+**Configuração (uma vez só):**
+
+1. No repositório GitHub → **Settings → Pages → Source**: `GitHub Actions`
+2. Em **Settings → Secrets and variables → Actions → Variables**, adicione:
+   - `BACKEND_URL` = URL do seu backend Railway (ex: `https://arvore-alerta.up.railway.app`)
+
+A cada push, o workflow injeta a URL correta e publica o `frontend/index.html` automaticamente.
+
+### 3. Claude Code — Integração GitHub
+
+O workflow `.github/workflows/claude.yml` permite mencionar `@claude` em qualquer issue ou PR para obter análise de código, revisão e sugestões.
+
+**Configuração:**
+1. Em **Settings → Secrets → Actions**, adicione `ANTHROPIC_API_KEY` com sua chave da API Anthropic
+2. Mencione `@claude` em qualquer comentário de PR ou issue
+
+### Monitoramento automático em produção
+
+Com o deploy ativo, o backend processa **8 locais/hora** em rotação contínua:
+- Cobertura completa dos 50 locais a cada ~6 horas
+- Estimativa de consumo: ~11.500 créditos openEO/mês (dentro do limite gratuito de 15.000)
+- Endpoint de status: `GET /cron/status`
 
 ---
 
@@ -294,5 +493,7 @@ Regiões de alta nebulosidade (ex: Amazônia na estação chuvosa) podem não te
 - [x] Comparação ano a ano (mesmo período safra anterior)
 - [x] Integração com API de alertas da Defesa Civil (INMET)
 - [x] Análise com Radar Sentinel-1 (ignora cobertura de nuvens)
+- [x] Monitoramento automático horário (50 locais, APScheduler)
+- [x] Deploy Railway + GitHub Pages + GitHub Actions
 - [ ] Notificações push por área de interesse
 - [ ] App mobile (PWA)

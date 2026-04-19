@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ArvoreAlerta v2.0 — Diagramas de Arquitetura</title>
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --green:  #2d6a4f;
+      --green-lt: #52b788;
+      --amber:  #e76f00;
+      --red:    #c1121f;
+      --bg:     #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text:   #e6edf3;
+      --muted:  #8b949e;
+    }
+
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 40px 32px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    /* CAPA */
+    .cover {
+      text-align: center;
+      padding: 60px 20px 80px;
+      border-bottom: 1px solid var(--border);
+      margin-bottom: 64px;
+    }
+    .cover-badge {
+      display: inline-block;
+      background: rgba(82,183,136,.15);
+      color: var(--green-lt);
+      border: 1px solid rgba(82,183,136,.3);
+      border-radius: 20px;
+      padding: 4px 16px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .cover h1 {
+      font-family: 'Syne', sans-serif;
+      font-size: clamp(36px, 6vw, 64px);
+      font-weight: 800;
+      color: var(--green-lt);
+      letter-spacing: -1px;
+      margin-bottom: 8px;
+    }
+    .cover h1 span { color: var(--text); }
+    .cover-sub {
+      font-size: 18px;
+      color: var(--muted);
+      max-width: 640px;
+      margin: 0 auto 32px;
+      line-height: 1.6;
+    }
+    .cover-stack {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: center;
+    }
+    .chip {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 13px;
+      color: var(--muted);
+    }
+    .chip b { color: var(--text); }
+
+    /* STATS */
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+      gap: 16px;
+      margin-bottom: 64px;
+    }
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    .stat-num {
+      font-family: 'Syne', sans-serif;
+      font-size: 36px;
+      font-weight: 800;
+      color: var(--green-lt);
+      letter-spacing: -1px;
+    }
+    .stat-label { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+    /* SECTIONS */
+    .section { margin-bottom: 72px; }
+    .section-label {
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--green-lt);
+      margin-bottom: 8px;
+    }
+    .section h2 {
+      font-family: 'Syne', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+    .section-desc {
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.7;
+      margin-bottom: 28px;
+      max-width: 720px;
+    }
+
+    /* DIAGRAM CARD */
+    .diagram-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 32px;
+      overflow-x: auto;
+    }
+    .diagram-card .mermaid {
+      display: flex;
+      justify-content: center;
+    }
+
+    /* SIDE BY SIDE */
+    .diagram-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 900px) { .diagram-row { grid-template-columns: 1fr; } }
+
+    /* LEGEND TABLE */
+    .legend-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 13px;
+    }
+    .legend-table th {
+      text-align: left;
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+    .legend-table td {
+      padding: 10px 12px;
+      border-bottom: 1px solid rgba(48,54,61,.5);
+      color: var(--text);
+      vertical-align: top;
+    }
+    .legend-table td:first-child { color: var(--muted); font-family: monospace; }
+    .badge-alto  { background: rgba(193,18,31,.18); color: #ff7070; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .badge-medio { background: rgba(231,111,0,.18); color: #fca130; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .badge-norm  { background: rgba(82,183,136,.18); color: #52b788; padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+
+    /* NDVI BAR DEMO */
+    .ndvi-demo { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+    .ndvi-row-demo { display: flex; align-items: center; gap: 12px; }
+    .ndvi-label-demo { font-size: 12px; color: var(--muted); width: 80px; flex-shrink: 0; }
+    .ndvi-bar-bg { flex: 1; height: 8px; background: var(--border); border-radius: 4px; overflow: hidden; }
+    .ndvi-bar-fill { height: 100%; border-radius: 4px; }
+    .ndvi-val-demo { font-size: 12px; font-family: monospace; width: 36px; text-align: right; }
+
+    /* FOOTER */
+    footer {
+      text-align: center;
+      padding: 48px 0 24px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 13px;
+    }
+    footer b { color: var(--text); }
+
+    /* PRINT */
+    @media print {
+      body { background: #fff; color: #111; padding: 20px; }
+      .cover { border-color: #ddd; }
+      .stat-card, .diagram-card { border-color: #ddd; background: #f9f9f9; }
+      .section h2 { color: #111; }
+      .chip { background: #eee; border-color: #ccc; color: #333; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- CAPA -->
+<div class="cover">
+  <div class="cover-badge">Trabalho de Conclusão de Curso</div>
+  <h1>Arvore<span>Alerta</span> <span style="font-size:.55em;color:var(--muted)">v2.0</span></h1>
+  <p class="cover-sub">
+    Detecção e mapeamento de quedas de árvores e desmatamento
+    utilizando imagens de satélite Sentinel-2/1 via Copernicus CDSE
+    e processamento de índice de vegetação NDVI.
+  </p>
+  <div class="cover-stack">
+    <div class="chip"><b>FastAPI</b> · Python</div>
+    <div class="chip"><b>openEO</b> · Copernicus CDSE</div>
+    <div class="chip"><b>Sentinel-2 L2A</b> NDVI</div>
+    <div class="chip"><b>Sentinel-1 GRD</b> Radar SAR</div>
+    <div class="chip"><b>Leaflet.js</b> · Heatmap</div>
+    <div class="chip"><b>SQLite</b> · APScheduler</div>
+    <div class="chip"><b>INMET</b> Alertas</div>
+    <div class="chip"><b>Railway</b> · GitHub Pages</div>
+  </div>
+</div>
+
+<!-- STATS -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <div class="stat-num">50</div>
+    <div class="stat-label">Locais monitorados<br>automaticamente</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">8</div>
+    <div class="stat-label">Locais processados<br>por hora</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">~6h</div>
+    <div class="stat-label">Ciclo completo<br>de cobertura</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">0€</div>
+    <div class="stat-label">Custo dos dados<br>Sentinel (free tier)</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">2</div>
+    <div class="stat-label">Satélites utilizados<br>S-2 óptico + S-1 radar</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num">100%</div>
+    <div class="stat-label">Dados públicos<br>ESA / Copernicus</div>
+  </div>
+</div>
+
+<!-- DIAGRAMA 1: ARQUITETURA -->
+<div class="section">
+  <div class="section-label">Diagrama 1</div>
+  <h2>Arquitetura do Sistema</h2>
+  <p class="section-desc">
+    Três camadas independentes: frontend estático (GitHub Pages), backend REST (Railway/FastAPI)
+    e serviços externos da ESA. O scheduler embutido elimina a necessidade de infraestrutura adicional.
+  </p>
+  <div class="diagram-card">
+    <div class="mermaid">
+graph LR
+    subgraph FE["🌐  Frontend — GitHub Pages"]
+        MAP["Leaflet.js\nHeatmap · Clustering\nNominatim Geocoding"]
+    end
+
+    subgraph BE["⚙️  Backend — Railway"]
+        API["FastAPI\nREST API"]
+        CRON["APScheduler\n⏱ 8 locais / hora"]
+        DB[("SQLite\narvore_alerta.db")]
+        API --- DB
+        CRON --> API
+    end
+
+    subgraph ESA["🛰️  Copernicus CDSE — ESA"]
+        OEO["openEO\nnuvem de processamento"]
+        S2["Sentinel-2 L2A\nNDVI  B04 · B08"]
+        S1["Sentinel-1 GRD\nRadar  VH band"]
+        OEO --- S2
+        OEO --- S1
+    end
+
+    INMET["⚠️  INMET\nAlertas Met."]
+    NOM["🗺️  Nominatim\nGeocoding"]
+
+    FE <-->|"REST / JSON"| API
+    FE -->|geocoding| NOM
+    API <-->|"OAuth2 + openEO"| OEO
+    API -->|HTTP| INMET
+    </div>
+  </div>
+</div>
+
+<!-- DIAGRAMA 2: FLUXO -->
+<div class="section">
+  <div class="section-label">Diagrama 2</div>
+  <h2>Fluxo de Detecção de Queda</h2>
+  <p class="section-desc">
+    Ao clicar no mapa, o sistema autentica no Copernicus, processa NDVI + Radar em paralelo,
+    consulta alertas do INMET e classifica a anomalia em até 3 minutos.
+  </p>
+  <div class="diagram-card">
+    <div class="mermaid">
+flowchart TD
+    A["📍 Clique no mapa\nlat · lon"] --> B["POST /satelite/analisar"]
+    B --> C{Credenciais\nCopernicus?}
+    C -->|Não| D["NDVI simulado\nmodo demo"]
+    C -->|Sim| E["🔑 Token OAuth2"]
+    E --> PAR["⚡ Processamento em paralelo"]
+    PAR --> G["🛰️ NDVI ref.\nSentinel-2 — ano anterior"]
+    PAR --> H["🛰️ NDVI atual\nSentinel-2 — período atual"]
+    PAR --> I["📡 Radar VH\nSentinel-1 GRD"]
+    PAR --> J["⚠️ Alertas INMET"]
+    G & H --> K["Δ NDVI = ref − atual"]
+    K --> L{Classificação}
+    L -->|"Δ > 0.20"| M["🔴 Alto\n60–99%"]
+    L -->|"Δ 0.10–0.20"| N["🟠 Médio\n40–60%"]
+    L -->|"Δ ≤ 0.10"| O["🟢 Normal\nsem registro"]
+    M & N --> P[("💾 INSERT\nSQLite")]
+    P --> Q["📌 Marcador no mapa\n+ Heatmap atualizado"]
+    </div>
+  </div>
+</div>
+
+<!-- DIAGRAMA 3 + TABELA -->
+<div class="section">
+  <div class="section-label">Diagrama 3</div>
+  <h2>Monitoramento Automático e Classificação</h2>
+  <p class="section-desc">
+    APScheduler integrado ao FastAPI rotaciona 50 locais (hotspots PRODES/INPE + capitais)
+    sem intervenção manual, consumindo ~11.500 créditos openEO/mês (free tier: 15.000).
+  </p>
+
+  <div class="diagram-row">
+    <div class="diagram-card">
+      <div class="mermaid">
+flowchart TD
+    T["⏱️ A cada hora\nAPScheduler"] --> B["executar_seed_automatico"]
+    B --> C["🔑 OAuth2 token"]
+    C --> D["Seleciona 8 locais\ncursor % 50"]
+    D --> E["NDVI + Radar + INMET\npara cada local"]
+    E --> F{Queda?}
+    F -->|Sim| G["💾 INSERT\nocorrencia"]
+    F -->|Não| H["log: normal"]
+    G & H --> I["cursor += 8\nCiclo: ~6 h"]
+      </div>
+    </div>
+
+    <div class="diagram-card" style="display:flex;flex-direction:column;gap:20px;">
+      <div>
+        <table class="legend-table">
+          <thead>
+            <tr><th>Δ NDVI</th><th>Nível</th><th>Confiança</th><th>Ação</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>&gt; 0.20</td>
+              <td><span class="badge-alto">Alto</span></td>
+              <td>60–99%</td>
+              <td>Registra ocorrência</td>
+            </tr>
+            <tr>
+              <td>0.10 – 0.20</td>
+              <td><span class="badge-medio">Médio</span></td>
+              <td>40–60%</td>
+              <td>Registra ocorrência</td>
+            </tr>
+            <tr>
+              <td>≤ 0.10</td>
+              <td><span class="badge-norm">Normal</span></td>
+              <td>—</td>
+              <td>Apenas log</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <table class="legend-table">
+          <thead>
+            <tr><th>Δ VH Radar (dB)</th><th>Interpretação</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>&gt; 2 dB</td><td>Alteração significativa de cobertura vegetal</td></tr>
+            <tr><td>1 – 2 dB</td><td>Alteração moderada — monitorar</td></tr>
+            <tr><td>&lt; 1 dB</td><td>Cobertura vegetal estável</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div>
+        <p style="font-size:12px;color:var(--muted);margin-bottom:8px;">Exemplo de variação NDVI detectada:</p>
+        <div class="ndvi-demo">
+          <div class="ndvi-row-demo">
+            <div class="ndvi-label-demo">NDVI ref.</div>
+            <div class="ndvi-bar-bg"><div class="ndvi-bar-fill" style="width:63%;background:#52b788"></div></div>
+            <div class="ndvi-val-demo" style="color:#52b788">0.631</div>
+          </div>
+          <div class="ndvi-row-demo">
+            <div class="ndvi-label-demo">NDVI atual</div>
+            <div class="ndvi-bar-bg"><div class="ndvi-bar-fill" style="width:31%;background:#c1121f"></div></div>
+            <div class="ndvi-val-demo" style="color:#ff7070">0.312</div>
+          </div>
+          <div class="ndvi-row-demo">
+            <div class="ndvi-label-demo">Δ</div>
+            <div class="ndvi-bar-bg"><div class="ndvi-bar-fill" style="width:80%;background:#c1121f"></div></div>
+            <div class="ndvi-val-demo" style="color:#ff7070">−0.319</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- DIAGRAMA 4: DEPLOY -->
+<div class="section">
+  <div class="section-label">Diagrama 4</div>
+  <h2>Pipeline de Deploy</h2>
+  <p class="section-desc">
+    Frontend no GitHub Pages (gratuito) e backend no Railway (~$5/mês).
+    CI/CD automático via GitHub Actions com integração nativa ao Claude Code.
+  </p>
+  <div class="diagram-card">
+    <div class="mermaid">
+flowchart LR
+    DEV["💻 Desenvolvedor\ngit push main"] --> GH["GitHub\nrepositório"]
+
+    GH --> GHA1["GitHub Actions\ndeploy-frontend.yml"]
+    GHA1 -->|"injeta BACKEND_URL"| GP["🌐 GitHub Pages\nfrontend estático\nindex.html"]
+
+    GH --> GHA2["GitHub Actions\nclaude.yml"]
+    GHA2 -->|"@claude mencionado\nem PR / issue"| CL["🤖 Claude Code\nrevisão automática"]
+
+    GH --> RW["Railway\nauto-deploy"]
+    RW --> API["⚙️ FastAPI\nmain.py\nport = $PORT"]
+    API --> VOL[("💾 Volume /data\narvore_alerta.db")]
+    API --> SCHED["⏱️ APScheduler\ncron automático"]
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>
+    <b>ArvoreAlerta v2.0</b> — TCC · Dados: <b>Copernicus CDSE</b> (ESA/União Europeia) ·
+    Satélites: <b>Sentinel-2 L2A</b> e <b>Sentinel-1 GRD</b> ·
+    Alertas: <b>INMET</b> · Mapas: <b>OpenStreetMap</b>
+  </p>
+  <p style="margin-top:8px;font-size:12px;">
+    Abrir no navegador para visualizar · Ctrl+P para exportar como PDF
+  </p>
+</footer>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'dark',
+    themeVariables: {
+      primaryColor: '#2d6a4f',
+      primaryTextColor: '#e6edf3',
+      primaryBorderColor: '#52b788',
+      lineColor: '#52b788',
+      secondaryColor: '#161b22',
+      tertiaryColor: '#1e2530',
+      background: '#0d1117',
+      mainBkg: '#161b22',
+      nodeBorder: '#30363d',
+      clusterBkg: '#161b22',
+      titleColor: '#e6edf3',
+      edgeLabelBackground: '#161b22',
+      fontFamily: 'DM Sans, sans-serif',
+      fontSize: '14px',
+    },
+    flowchart: { curve: 'basis', padding: 20 },
+  });
+</script>
+</body>
+</html>
