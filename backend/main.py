@@ -5,6 +5,7 @@ Dois modos de detecção:
   2. Usuário:  reporte manual estilo Waze com confirmações coletivas
 """
 
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
@@ -19,9 +20,11 @@ import asyncio
 import csv
 import io
 import json
+import logging
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 try:
     import openeo
@@ -30,11 +33,175 @@ try:
 except ImportError:
     OPENEO_DISPONIVEL = False
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+log = logging.getLogger("arvore_alerta")
+
 _executor = ThreadPoolExecutor(max_workers=2)
 
 load_dotenv()
 
-app = FastAPI(title="ArvoreAlerta API", version="2.0.0")
+# -------------------------------------------------------
+# Locais de monitoramento automático
+# Fonte: PRODES/DETER (INPE) — principais focos de desmatamento
+# e maiores cidades brasileiras
+# -------------------------------------------------------
+LOCAIS_MONITORAMENTO = [
+    # --- Capitais e metrópoles ---
+    (-23.550, -46.633, "São Paulo"),
+    (-22.906, -43.173, "Rio de Janeiro"),
+    (-19.917, -43.934, "Belo Horizonte"),
+    (-15.779, -47.929, "Brasília"),
+    (-12.971, -38.511, "Salvador"),
+    ( -8.054, -34.881, "Recife"),
+    ( -3.717, -38.543, "Fortaleza"),
+    ( -3.119, -60.022, "Manaus"),
+    ( -1.456, -48.502, "Belém"),
+    (-25.429, -49.271, "Curitiba"),
+    (-30.033, -51.230, "Porto Alegre"),
+    ( -2.529, -44.303, "São Luís"),
+    (-10.912, -37.073, "Aracaju"),
+    ( -8.761, -63.900, "Porto Velho"),
+    ( -9.975, -67.824, "Rio Branco"),
+    # --- Hotspots de desmatamento — Arco da Amazônia (INPE/DETER) ---
+    # Pará (maior desmatador recente)
+    ( -7.530, -55.030, "Altamira — PA"),
+    ( -7.093, -55.110, "Novo Progresso — PA"),
+    ( -6.638, -51.955, "São Félix do Xingu — PA"),
+    ( -3.380, -53.050, "Rurópolis — PA"),
+    ( -5.450, -55.430, "Trairão — PA"),
+    ( -4.810, -53.770, "Placas — PA"),
+    ( -6.200, -55.530, "Itaituba — PA"),
+    # Mato Grosso
+    ( -9.977, -58.200, "Colniza — MT"),
+    (-10.370, -58.020, "Alta Floresta — MT"),
+    (-11.550, -55.450, "Sorriso — MT"),
+    (-13.010, -55.250, "Lucas do Rio Verde — MT"),
+    (-11.860, -55.760, "Sinop — MT"),
+    (-14.660, -59.320, "Juína — MT"),
+    # Rondônia
+    (-10.878, -61.945, "Ji-Paraná — RO"),
+    (-11.730, -61.360, "Cacoal — RO"),
+    ( -9.165, -62.856, "Machadinho d'Oeste — RO"),
+    (-11.437, -61.832, "Presidente Médici — RO"),
+    # Amazonas
+    ( -6.050, -67.950, "Lábrea — AM"),
+    ( -7.280, -64.890, "Humaitá — AM"),
+    ( -5.826, -61.274, "Novo Aripuanã — AM"),
+    ( -4.870, -60.030, "Borba — AM"),
+    # Acre
+    (-10.003, -67.807, "Brasileia — AC"),
+    ( -7.728, -72.664, "Cruzeiro do Sul — AC"),
+    ( -8.160, -70.770, "Feijó — AC"),
+    # --- Hotspots — Cerrado (Matopiba) ---
+    (-11.858, -45.838, "Barreiras — BA"),
+    (-12.150, -45.005, "São Desidério — BA"),
+    ( -7.216, -48.203, "Araguaína — TO"),
+    (-10.175, -48.335, "Palmas — TO"),
+    ( -6.755, -47.459, "Imperatriz — MA"),
+    ( -4.867, -44.886, "Barra do Corda — MA"),
+    # --- Mata Atlântica ---
+    (-20.270, -40.308, "Vitória — ES"),
+    (-23.960, -46.340, "Santos — SP"),
+    (-26.305, -48.849, "Joinville — SC"),
+]
+
+# Quantos locais processar por hora (controle de créditos openEO)
+# 15.000 créditos/mês ÷ 30 dias ÷ 24 h = ~21 créditos/hora
+# ~2 créditos/análise NDVI → máximo seguro: 8 locais/hora
+LOTE_POR_HORA = 8
+_seed_cursor = 0  # rotação pelo índice da lista
+
+_scheduler = AsyncIOScheduler(timezone="America/Sao_Paulo")
+
+async def executar_seed_automatico():
+    """
+    Cron horário: analisa o próximo lote de locais via Sentinel-2 + Sentinel-1.
+    Rotaciona pelo LOCAIS_MONITORAMENTO para cobrir todos em ~6 horas.
+    """
+    global _seed_cursor
+    if not CDSE_USER or not CDSE_PASS or not OPENEO_DISPONIVEL:
+        return
+
+    try:
+        token = await get_cdse_token()
+    except Exception as e:
+        log.warning(f"[CRON] Falha na autenticação Copernicus: {e}")
+        return
+
+    total = len(LOCAIS_MONITORAMENTO)
+    lote = [LOCAIS_MONITORAMENTO[(_seed_cursor + i) % total] for i in range(LOTE_POR_HORA)]
+    _seed_cursor = (_seed_cursor + LOTE_POR_HORA) % total
+
+    log.info(f"[CRON] Processando lote: {[c for _, _, c in lote]}")
+
+    for lat, lon, cidade in lote:
+        try:
+            resultados = await asyncio.gather(
+                calcular_ndvi_real(lat, lon, token, 30),
+                calcular_radar_real(lat, lon, token, 30),
+                return_exceptions=True,
+            )
+            ndvi_data  = resultados[0] if not isinstance(resultados[0], Exception) \
+                         else calcular_ndvi_simulado(lat, lon, "cron")
+            radar_data = resultados[1] if not isinstance(resultados[1], Exception) else None
+
+            alertas   = await buscar_alertas_inmet(lat, lon)
+            resultado = interpretar_ndvi(ndvi_data["ndvi_delta"], ndvi_data["ndvi_atual"])
+
+            if resultado["queda_detectada"]:
+                conn = get_db()
+                c = conn.cursor()
+                c.execute("""
+                    INSERT INTO ocorrencias
+                      (latitude, longitude, status, origem, confianca,
+                       ndvi_atual, ndvi_ref, ndvi_delta, descricao, cidade,
+                       radar_vh_delta, alertas_dc, modo_ref, periodo_atual, periodo_ref)
+                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                """, (
+                    lat, lon, "confirmado", "satellite",
+                    resultado["confianca"],
+                    ndvi_data["ndvi_atual"], ndvi_data["ndvi_ref"], ndvi_data["ndvi_delta"],
+                    resultado["descricao"], cidade,
+                    radar_data["vh_delta_db"] if radar_data else None,
+                    alertas, "ano_anterior",
+                    ndvi_data.get("periodo_atual"), ndvi_data.get("periodo_ref"),
+                ))
+                conn.commit()
+                conn.close()
+                log.info(f"[CRON] ✓ {cidade}: {resultado['nivel']} Δ={ndvi_data['ndvi_delta']:.3f}")
+            else:
+                log.info(f"[CRON] – {cidade}: normal Δ={ndvi_data['ndvi_delta']:.3f}")
+
+        except Exception as e:
+            log.warning(f"[CRON] Erro em {cidade}: {type(e).__name__}: {e}")
+
+        await asyncio.sleep(5)  # pausa entre chamadas para não sobrecarregar a API
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    DB_PATH_ENV = os.getenv("DB_PATH")
+    if DB_PATH_ENV:
+        global DB_PATH
+        DB_PATH = DB_PATH_ENV
+        init_db()
+
+    if CDSE_USER and CDSE_PASS and OPENEO_DISPONIVEL:
+        _scheduler.add_job(executar_seed_automatico, "interval", hours=1,
+                           id="seed_automatico", replace_existing=True)
+        _scheduler.start()
+        log.info(f"[CRON] Monitoramento ativo — {LOTE_POR_HORA} locais/hora, "
+                 f"{len(LOCAIS_MONITORAMENTO)} locais no total")
+    else:
+        log.info("[CRON] Monitoramento desativado (sem credenciais Copernicus)")
+
+    yield
+
+    if _scheduler.running:
+        _scheduler.shutdown(wait=False)
+
+
+app = FastAPI(title="ArvoreAlerta API", version="2.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,7 +222,7 @@ CDSE_PASS      = os.getenv("CDSE_PASS", "")
 CDSE_TOKEN_URL = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
 CDSE_SEARCH_URL = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
 
-DB_PATH = "arvore_alerta.db"
+DB_PATH = os.getenv("DB_PATH", "arvore_alerta.db")
 
 
 # -------------------------------------------------------
@@ -689,4 +856,26 @@ def estatisticas():
         "confirmados":      confirmados,
         "media_confianca":  round(media, 2),
         "reportes_usuario": reportes,
+    }
+
+
+@app.get("/cron/status")
+def status_cron():
+    """Status do monitoramento automático (útil para healthcheck em produção)."""
+    jobs = []
+    if _scheduler.running:
+        for job in _scheduler.get_jobs():
+            jobs.append({
+                "id":           job.id,
+                "proxima_exec": str(job.next_run_time),
+            })
+    return {
+        "ativo":              _scheduler.running,
+        "locais_total":       len(LOCAIS_MONITORAMENTO),
+        "lote_por_hora":      LOTE_POR_HORA,
+        "cursor_atual":       _seed_cursor,
+        "ciclo_completo_h":   math.ceil(len(LOCAIS_MONITORAMENTO) / LOTE_POR_HORA),
+        "creditos_mes_est":   LOTE_POR_HORA * 24 * 30 * 2,
+        "jobs":               jobs,
+        "modo_openeo":        OPENEO_DISPONIVEL and bool(CDSE_USER),
     }

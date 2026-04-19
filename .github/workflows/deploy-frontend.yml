@@ -1,0 +1,49 @@
+name: Deploy Frontend — GitHub Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Substitui a URL do backend local pela URL de produção (Railway)
+      # Configure BACKEND_URL como variável de repositório no GitHub:
+      # Settings → Secrets and variables → Actions → Variables → BACKEND_URL
+      - name: Injetar URL do backend de produção
+        if: vars.BACKEND_URL != ''
+        run: |
+          sed -i "s|http://localhost:8000|${{ vars.BACKEND_URL }}|g" frontend/index.html
+          echo "✓ API URL definida para: ${{ vars.BACKEND_URL }}"
+
+      - name: Configurar GitHub Pages
+        uses: actions/configure-pages@v4
+
+      - name: Fazer upload do artefato
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/
+
+      - name: Deploy no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

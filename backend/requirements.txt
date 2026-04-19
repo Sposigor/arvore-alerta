@@ -6,3 +6,4 @@ httpx
 python-dotenv
 openeo
 numpy
+apscheduler>=3.10,<4.0
