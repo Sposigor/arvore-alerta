@@ -12,6 +12,7 @@ from app.services.deter import contar_alertas_deter
 from app.services.firms import contar_focos_fogo
 from app.services.ndvi import calcular_ndvi_real, calcular_ndvi_simulado, interpretar_ndvi
 from app.services.radar import calcular_radar_real
+from app.services.scoring import fortalecer_confianca
 
 router = APIRouter(prefix="/satelite", tags=["satélite"])
 
@@ -68,13 +69,19 @@ async def analisar_por_satelite(
         contar_alertas_deter(latitude, longitude, data_fim),
     )
     resultado = interpretar_ndvi(ndvi_data["ndvi_delta"], ndvi_data["ndvi_atual"])
+    radar_delta = radar_data["vh_delta_db"] if radar_data else None
+    confianca_final, fontes_corroborantes = fortalecer_confianca(
+        resultado["confianca"], focos_fogo, deter_alertas, radar_delta,
+    )
+    if fontes_corroborantes:
+        resultado["descricao"] += " Corroborado por: " + ", ".join(fontes_corroborantes) + "."
 
     ocorrencia_id = None
     if resultado["queda_detectada"]:
         conn = get_db()
         c = conn.cursor()
         c.execute("""
-            INSERT INTO ocorrencias
+            INSERT OR IGNORE INTO ocorrencias
               (latitude, longitude, status, origem, confianca,
                ndvi_atual, ndvi_ref, ndvi_delta, descricao, cidade, bairro,
                radar_vh_delta, alertas_dc, modo_ref, periodo_atual, periodo_ref,
@@ -82,16 +89,16 @@ async def analisar_por_satelite(
             VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             latitude, longitude, "confirmado", "satellite",
-            resultado["confianca"],
+            confianca_final,
             ndvi_data["ndvi_atual"], ndvi_data["ndvi_ref"], ndvi_data["ndvi_delta"],
             resultado["descricao"], cidade, bairro,
-            radar_data["vh_delta_db"] if radar_data else None,
+            radar_delta,
             alertas_inmet, modo_ref,
             ndvi_data.get("periodo_atual"), ndvi_data.get("periodo_ref"),
             focos_fogo, deter_alertas,
         ))
         conn.commit()
-        ocorrencia_id = c.lastrowid
+        ocorrencia_id = c.lastrowid if c.rowcount > 0 else None
         conn.close()
 
     return {
@@ -106,7 +113,9 @@ async def analisar_por_satelite(
         "data_fim": data_fim.isoformat() if data_fim else None,
         "nivel": resultado["nivel"],
         "queda_detectada": resultado["queda_detectada"],
-        "confianca": resultado["confianca"],
+        "confianca": confianca_final,
+        "confianca_ndvi": resultado["confianca"],
+        "fontes_corroborantes": fontes_corroborantes,
         "descricao": resultado["descricao"],
         "radar": radar_data,
         "alertas_dc": alertas_inmet,

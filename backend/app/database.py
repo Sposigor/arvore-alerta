@@ -57,6 +57,12 @@ def init_db():
         except sqlite3.OperationalError:
             pass
 
+    c.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_ocorrencias_unique
+        ON ocorrencias (latitude, longitude, periodo_atual)
+        WHERE periodo_atual IS NOT NULL
+    """)
+
     conn.commit()
     conn.close()
 

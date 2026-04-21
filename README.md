@@ -2,15 +2,22 @@
 
 Sistema de detecção e mapeamento de quedas de árvores utilizando imagens de satélite Sentinel-2 (Copernicus CDSE) e processamento de índice de vegetação NDVI.
 
-**Stack:** FastAPI · SQLite · Leaflet.js · openEO · Copernicus CDSE (Sentinel-2 L2A · Sentinel-1 GRD) · APScheduler · INMET
+**Stack:** FastAPI · SQLite · Leaflet.js · openEO · Copernicus CDSE (Sentinel-2 L2A · Sentinel-1 GRD) · APScheduler · INMET · NASA FIRMS · INPE DETER/TerraBrasilis
 
 ---
 
 ## Sobre o Projeto
 
-ArvoreAlerta é um sistema web que detecta automaticamente possíveis quedas de árvores a partir da análise de imagens de satélite. O sistema compara o índice de vegetação NDVI de um ponto geográfico em dois períodos distintos — se houver queda brusca, uma ocorrência é registrada com nível de confiança.
+ArvoreAlerta é um sistema web que detecta automaticamente possíveis quedas de árvores e eventos de desmatamento a partir da **fusão de múltiplas fontes de sensoriamento remoto**:
 
-O projeto foi desenvolvido como Trabalho de Conclusão de Curso (TCC) e demonstra a viabilidade de usar dados públicos e gratuitos do programa Copernicus (ESA/União Europeia) para monitoramento ambiental urbano e rastreamento de desmatamento.
+- **NDVI (Sentinel-2)** — índice ótico de vegetação
+- **Radar (Sentinel-1)** — retroespalhamento VH independente de nuvens
+- **Focos de queimada (NASA FIRMS)** — evidência correlacional de perda de cobertura
+- **DETER/INPE** — polígonos oficiais de alerta de desmatamento (Amazônia + Cerrado)
+
+O sistema compara o NDVI do período atual com o do mesmo período do ano anterior; quando detecta anomalia, reforça o nível de confiança com as evidências corroborantes (FIRMS, DETER, radar). Isso produz alertas com **múltiplas linhas de evidência**, mais defensáveis do que os baseados em NDVI isolado.
+
+O projeto foi desenvolvido como Trabalho de Conclusão de Curso (TCC) e demonstra a viabilidade de usar APIs públicas e gratuitas (ESA Copernicus, NASA FIRMS, INPE TerraBrasilis) para monitoramento ambiental urbano e rastreamento de desmatamento.
 
 ---
 
@@ -26,9 +33,9 @@ graph LR
 
     subgraph BE["⚙️ Backend — Railway (FastAPI)"]
         API["routers/\nsatelite · usuario\nocorrencias · sistema"]
-        SVC["services/\nndvi · radar\nalertas · copernicus"]
+        SVC["services/\nndvi · radar · alertas\ncopernicus · firms · deter\nscoring"]
         CRON["scheduler.py\n⏱ 8 locais / hora"]
-        DB[("SQLite\narvore_alerta.db")]
+        DB[("SQLite\nUNIQUE(lat,lon,periodo)")]
         API --> SVC
         SVC --- DB
         CRON --> SVC
@@ -43,12 +50,16 @@ graph LR
     end
 
     INMET["⚠️ INMET\nAlertas meteorológicos"]
+    FIRMS["🔥 NASA FIRMS\nFocos de queimada (VIIRS)"]
+    DETER["🌳 INPE DETER\nAlertas desmatamento (WFS)"]
     NOM["🗺️ Nominatim\nGeocoding reverso"]
 
     FE <-->|"REST / JSON"| API
     FE -->|geocoding| NOM
     API <-->|"OAuth2 + openEO"| OEO
     API -->|HTTP| INMET
+    API -->|HTTP CSV| FIRMS
+    API -->|WFS GeoJSON| DETER
 ```
 
 ### Fluxo de Detecção de Queda
@@ -60,17 +71,21 @@ flowchart TD
     C -->|Não| D["NDVI simulado\n(modo demo)"]
     C -->|Sim| E["🔑 Token OAuth2\nCopernicus CDSE"]
     E --> F["⚡ Processamento paralelo"]
-    F --> G["🛰️ openEO — Sentinel-2\nNDVI referência"]
-    F --> H["🛰️ openEO — Sentinel-2\nNDVI atual"]
-    F --> I["📡 openEO — Sentinel-1\nRetroespalhamento VH"]
+    F --> G["🛰️ Sentinel-2\nNDVI referência"]
+    F --> H["🛰️ Sentinel-2\nNDVI atual"]
+    F --> I["📡 Sentinel-1\nRetroespalhamento VH"]
     F --> J["⚠️ INMET\nAlertas ativos"]
+    F --> J2["🔥 NASA FIRMS\nFocos VIIRS"]
+    F --> J3["🌳 INPE DETER\nAlertas desmatamento"]
     G & H --> K["Δ NDVI = ref − atual"]
     K --> L{Classificação}
-    L -->|"Δ > 0.20"| M["🔴 Alto\n60–99% confiança"]
-    L -->|"Δ 0.10–0.20"| N["🟠 Médio\n40–60% confiança"]
+    L -->|"Δ > 0.20"| M["🔴 Alto\nbase 60–99%"]
+    L -->|"Δ 0.10–0.20"| N["🟠 Médio\nbase 40–60%"]
     L -->|"Δ ≤ 0.10"| O["🟢 Normal\nsem registro"]
-    M & N --> P[("💾 INSERT ocorrencia\nSQLite")]
-    P --> Q["📌 Marcador no mapa\n+ Heatmap atualizado"]
+    M & N --> SC["⚙️ Score multi-sinal\n+FIRMS +0.10\n+DETER +0.15\n+Radar±2dB +0.05"]
+    I & J2 & J3 --> SC
+    SC --> P[("💾 INSERT OR IGNORE\nSQLite")]
+    P --> Q["📌 Marcador no mapa\n+ badges 🔥🌳📡"]
 ```
 
 ### Monitoramento Automático — Rotação de Locais
@@ -106,12 +121,15 @@ projeto_tcc/
 │   │   │   └── sistema.py       # GET /stats · /cron/status
 │   │   └── services/
 │   │       ├── copernicus.py    # OAuth2 CDSE + busca Sentinel-2
-│   │       ├── ndvi.py          # Cálculo NDVI via openEO + simulado
+│   │       ├── ndvi.py          # NDVI via openEO (aceita data_fim histórica)
 │   │       ├── radar.py         # Retroespalhamento VH — Sentinel-1 GRD
-│   │       └── alertas.py       # Alertas ativos — API INMET
+│   │       ├── alertas.py       # Alertas ativos — API INMET
+│   │       ├── firms.py         # NASA FIRMS — focos de queimada (VIIRS)
+│   │       ├── deter.py         # INPE DETER — alertas de desmatamento (WFS)
+│   │       └── scoring.py       # Fusão multi-sinal da confiança
 │   └── scripts/
 │       ├── seed.py              # Popula banco com dados simulados (demo)
-│       └── seed_real.py         # Popula banco com NDVI real via Copernicus
+│       └── seed_real.py         # Seed histórico trimestral (2 anos × 50 locais)
 ├── frontend/
 │   └── index.html               # Interface web (mapa + análise NDVI)
 ├── docs/
@@ -122,7 +140,7 @@ projeto_tcc/
 │       └── claude.yml           # Integração @claude em PRs/issues
 ├── requirements.txt             # Dependências Python
 ├── .env.example                 # Template de credenciais (versionar)
-├── nixpacks.toml                # Configuração de build (Railway/Nixpacks)
+├── Dockerfile                   # Imagem Python 3.11-slim (Railway)
 ├── railway.toml                 # Configuração de deploy (Railway)
 ├── .gitignore
 └── README.md
@@ -136,6 +154,9 @@ projeto_tcc/
 - **Conta Copernicus CDSE** — gratuita, sem cartão de crédito
   - Cadastro: https://dataspace.copernicus.eu
   - Dá acesso a imagens Sentinel-2 dos últimos 2 anos e 15.000 créditos openEO/mês
+- **Chave NASA FIRMS** (opcional, recomendada) — gratuita, sem cartão
+  - Gere em: https://firms.modaps.eosdis.nasa.gov/api/map_key/
+  - Habilita contagem de focos de queimada próximos ao ponto analisado
 
 ---
 
@@ -206,24 +227,41 @@ cd backend
 python scripts/seed.py
 ```
 
-**Dados reais via Copernicus** (requer `.env` configurado e backend rodando):
+**Seed histórico real** (requer `.env` com CDSE configurado):
 ```bash
-cd backend
-python scripts/seed_real.py
-# Processa ~29 cidades. Cada ponto leva 60–120 s.
+# Local — usa backend em http://localhost:8000
+python backend/scripts/seed_real.py
+
+# Produção — aponta para backend no Railway
+API=https://arvore-alerta-production.up.railway.app python backend/scripts/seed_real.py
 ```
+
+O script varre os **50 locais curados** (capitais + hotspots de desmatamento da Amazônia, Cerrado, Mata Atlântica) em **amostragem trimestral dos últimos 2 anos** (50 × 8 = 400 análises). Cada análise consome ~2-3 créditos openEO e leva 60-180 s — o seed completo leva ~10-15 h e ~1000-1500 créditos (dentro da quota gratuita).
+
+Variáveis de ambiente suportadas:
+
+| Env | Default | Descrição |
+|-----|---------|-----------|
+| `API` | `http://localhost:8000` | URL do backend |
+| `ANOS` | `2` | Horizonte retroativo em anos |
+| `DIAS_REF` | `30` | Janela de dias por snapshot NDVI |
+| `MAX_LOCAIS` | `0` | Limita nº de locais (debug) |
+| `PAUSA_S` | `3` | Pausa entre chamadas (s) |
+
+O UNIQUE index em `(lat, lon, periodo_atual)` garante idempotência — relançar o seed não duplica ocorrências.
 
 ---
 
 ## Como Usar
 
-1. **Selecionar período** — o seletor no topo do painel filtra as ocorrências exibidas no mapa (15 dias até 1 ano)
-2. **Analisar um ponto** — clique em qualquer lugar do mapa para preencher as coordenadas, ajuste a janela de referência NDVI e clique em **Consultar Sentinel-2**
-3. **Comparação de referência** — escolha entre "mesmo período ano anterior" ou "período imediatamente anterior"
-4. **Ver detalhes** — clique em qualquer marcador ou card da lista para abrir o painel de detalhes com NDVI, radar e alertas INMET
-5. **Filtrar por severidade** — botões **Todos / Alto / Médio** acima da lista atualizam o mapa e a listagem simultaneamente
-6. **Exportar dados** — botões **⬇ GeoJSON** e **⬇ CSV** baixam as ocorrências do período selecionado
-7. **Expandir mapa** — o botão `‹` na borda do painel recolhe a sidebar
+1. **Selecionar período** — seletor filtra ocorrências exibidas no mapa (15 dias até **2 anos**)
+2. **Analisar um ponto** — clique em qualquer lugar do mapa para preencher coordenadas, ajuste a janela e clique em **Consultar Sentinel-2**
+3. **Comparação de referência** — "mesmo período ano anterior" ou "período imediatamente anterior"
+4. **Ver detalhes** — clique em marcador/card para abrir painel com NDVI, radar, alertas INMET e **evidências corroborantes** (FIRMS/DETER)
+5. **Badges de evidência** — cada ocorrência exibe ícones 🔥 (foco de fogo próximo), 🌳 (alerta DETER) e 📡 (radar confirma) quando sinais adicionais reforçam o NDVI
+6. **Filtrar por severidade** — botões **Todos / Alto / Médio** atualizam mapa e lista simultaneamente
+7. **Exportar dados** — botões **⬇ GeoJSON** e **⬇ CSV** baixam ocorrências do período selecionado
+8. **Expandir mapa** — botão `‹` na borda do painel recolhe a sidebar
 
 ---
 
@@ -267,6 +305,18 @@ O Sentinel-1 usa radar SAR (Synthetic Aperture Radar) e penetra nuvens, coletand
 | 1 – 2 dB | Alteração moderada |
 | < 1 dB | Cobertura estável |
 
+### Fusão multi-sinal da confiança
+
+Uma vez que o NDVI detectou anomalia, o sistema consulta em paralelo **três fontes independentes** para corroborar — ou refutar — a hipótese de perda de cobertura:
+
+| Fonte | API | Bônus | Justificativa |
+|-------|-----|-------|---------------|
+| NASA FIRMS (focos VIIRS) | `firms.modaps.eosdis.nasa.gov` | +0.10 | Fogo recente → queda NDVI é *consequência*, não artefato |
+| INPE DETER (polígonos) | `terrabrasilis.dpi.inpe.br/geoserver/ows` | +0.15 | Ground-truth oficial do órgão brasileiro responsável |
+| Radar Sentinel-1 (\|Δ\| > 2 dB) | openEO CDSE | +0.05 | Evidência estrutural independente de cobertura de nuvens |
+
+A confiança final é truncada em `0.99` e fica disponível no campo `confianca` da resposta; `confianca_ndvi` preserva o valor original para comparação, e `fontes_corroborantes` lista textualmente as evidências somadas. Isso produz alertas com **múltiplas linhas de evidência** — mais defensáveis na banca e menos sujeitos a falsos positivos de nebulosidade, sazonalidade agrícola ou artefatos atmosféricos.
+
 ---
 
 ## API REST
@@ -298,6 +348,7 @@ Separar a API do frontend permite que qualquer outra interface (app mobile, pain
 | `cidade` | string | null | Nome da cidade/bairro |
 | `dias_ref` | int | 30 | Janela de referência NDVI em dias |
 | `modo_ref` | string | `ano_anterior` | `ano_anterior` ou `recente` |
+| `data_fim` | date | hoje | Data final da janela (YYYY-MM-DD) — para varredura histórica |
 
 **Exemplo de resposta:**
 ```json
@@ -309,12 +360,17 @@ Separar a API do frontend permite que qualquer outra interface (app mobile, pain
   "periodo_atual": "20/03/2026 – 19/04/2026",
   "periodo_ref": "20/03/2025 – 19/04/2025",
   "modo_ref": "ano_anterior",
+  "data_fim": "2026-04-19",
   "nivel": "alto",
   "queda_detectada": true,
-  "confianca": 0.88,
-  "descricao": "Queda brusca de NDVI detectada (Δ=0.319). NDVI atual: 0.312.",
+  "confianca": 0.99,
+  "confianca_ndvi": 0.88,
+  "fontes_corroborantes": ["FIRMS (7 focos)", "DETER/INPE (2 alertas)", "Radar S1 (Δ=+3.5 dB)"],
+  "descricao": "Queda brusca de NDVI detectada (Δ=0.319). Corroborado por: FIRMS (7 focos), DETER/INPE (2 alertas), Radar S1 (Δ=+3.5 dB).",
   "radar": { "vh_ref": 0.000412, "vh_atual": 0.000185, "vh_delta_db": 3.47 },
   "alertas_dc": "[Laranja] Chuvas intensas previstas para os próximos 2 dias",
+  "focos_fogo": 7,
+  "deter_alertas": 2,
   "ocorrencia_id": 42
 }
 ```
@@ -447,7 +503,7 @@ GitHub (código-fonte)
 
 ### 1. Backend — Railway
 
-[railway.app](https://railway.app) — suporta Python nativamente, volumes persistentes para o SQLite e deploy automático via GitHub.
+[railway.app](https://railway.app) — build via **Dockerfile** (Python 3.11-slim), volumes persistentes para o SQLite e deploy automático via GitHub.
 
 ```bash
 # Instale o CLI do Railway
@@ -458,13 +514,21 @@ railway login
 railway init
 
 # Configure as variáveis de ambiente no painel Railway:
-# CDSE_USER, CDSE_PASS, DB_PATH=/data/arvore_alerta.db
+#   CDSE_USER       → seu email Copernicus
+#   CDSE_PASS       → sua senha Copernicus
+#   FIRMS_MAP_KEY   → chave NASA FIRMS (opcional, habilita focos de fogo)
+#   DB_PATH         → /data/arvore_alerta.db  (aponta pro volume)
 
 # Deploy
 railway up
 ```
 
-> **Volume SQLite:** no painel Railway, crie um volume em `/data` e defina `DB_PATH=/data/arvore_alerta.db` como variável de ambiente. Isso garante que o banco persista entre deploys.
+**Configurações obrigatórias no painel Railway:**
+
+1. **Builder = Dockerfile** — em _Settings → Build_, defina `DOCKERFILE`. O `railway.toml` já aponta para `Dockerfile` na raiz.
+2. **Volume persistente** — em _Volumes → New Volume_, mount em `/data` (1 GB basta). Sem isso o SQLite é apagado a cada deploy.
+3. **Healthcheck** — em _Deploy → Healthcheck Path_ = `/stats`, timeout 60 s.
+4. **Domínio público** — em _Settings → Networking → Generate Domain_ para expor a API publicamente.
 
 O cron de monitoramento horário **inicia automaticamente** junto com o backend quando `CDSE_USER` e `CDSE_PASS` estão configurados. Monitore em: `GET /cron/status`.
 
@@ -510,5 +574,10 @@ Com o deploy ativo, o backend processa **8 locais/hora** em rotação contínua:
 - [x] Análise com Radar Sentinel-1 (ignora cobertura de nuvens)
 - [x] Monitoramento automático horário (50 locais, APScheduler)
 - [x] Deploy Railway + GitHub Pages + GitHub Actions
+- [x] Integração NASA FIRMS (focos de queimada VIIRS)
+- [x] Integração INPE DETER (alertas oficiais de desmatamento)
+- [x] Fusão multi-sinal da confiança (NDVI + FIRMS + DETER + radar)
+- [x] Varredura histórica com amostragem trimestral (2 anos × 50 locais)
+- [x] Deduplicação via UNIQUE index em (lat, lon, periodo_atual)
 - [ ] Notificações push por área de interesse
 - [ ] App mobile (PWA)
