@@ -71,11 +71,22 @@ def _calcular_ndvi_openeo(
         red = cube.band("B04")
         ndvi = (nir - red) / (nir + red)
         serie = ndvi.aggregate_spatial(geometries=ponto_geojson, reducer="mean").execute()
+
+        def _flatten(x):
+            if isinstance(x, (list, tuple)):
+                for item in x:
+                    yield from _flatten(item)
+            else:
+                yield x
+
         vals = []
         for _, amostras in serie.items():
-            for v in amostras:
-                if v is not None and not (isinstance(v, float) and np.isnan(v)):
-                    vals.append(float(v))
+            for v in _flatten(amostras):
+                if v is None:
+                    continue
+                if isinstance(v, float) and np.isnan(v):
+                    continue
+                vals.append(float(v))
         if not vals:
             raise ValueError("Sem imagens válidas no período (cobertura de nuvens alta ou sem dados)")
         return float(np.mean(vals))
