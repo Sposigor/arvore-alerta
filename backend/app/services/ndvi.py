@@ -50,6 +50,15 @@ def _calcular_ndvi_openeo(
     conn = openeo.connect("https://openeo.dataspace.copernicus.eu")
     conn.authenticate_oidc_access_token(token)
 
+    ponto_geojson = {
+        "type": "FeatureCollection",
+        "features": [{
+            "type": "Feature",
+            "geometry": {"type": "Point", "coordinates": [lon, lat]},
+            "properties": {},
+        }],
+    }
+
     def ndvi_media(ini: datetime, fim: datetime) -> float:
         cube = conn.load_collection(
             "SENTINEL2_L2A",
@@ -61,11 +70,15 @@ def _calcular_ndvi_openeo(
         nir = cube.band("B08")
         red = cube.band("B04")
         ndvi = (nir - red) / (nir + red)
-        result = ndvi.mean_time().execute()
-        val = float(np.nanmean(result.values))
-        if np.isnan(val):
+        serie = ndvi.aggregate_spatial(geometries=ponto_geojson, reducer="mean").execute()
+        vals = []
+        for _, amostras in serie.items():
+            for v in amostras:
+                if v is not None and not (isinstance(v, float) and np.isnan(v)):
+                    vals.append(float(v))
+        if not vals:
             raise ValueError("Sem imagens válidas no período (cobertura de nuvens alta ou sem dados)")
-        return val
+        return float(np.mean(vals))
 
     v_atu = ndvi_media(ini_atu, fim_atu)
     v_ref = ndvi_media(ini_ref, fim_ref)
