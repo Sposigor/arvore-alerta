@@ -4,11 +4,12 @@ NASA FIRMS — focos de queimada (VIIRS/MODIS).
 Endpoint de área: https://firms.modaps.eosdis.nasa.gov/api/area/csv/{MAP_KEY}/{SOURCE}/{AREA_COORDS}/{DAY_RANGE}/{DATE}
 
 Limites:
-- DAY_RANGE máximo: 10 dias por query
+- DAY_RANGE máximo: 5 dias por query (NRT e SP)
 - DATE é a data final (YYYY-MM-DD)
 - Para SOURCE usamos VIIRS_SNPP_NRT (near-real-time) em dados recentes
   e VIIRS_SNPP_SP (scientific processing) em histórico (>60 dias)
 """
+import sys
 from datetime import date, timedelta
 from typing import Optional
 
@@ -33,6 +34,8 @@ async def contar_focos_fogo(
 
     fim = data_fim or date.today()
     source = "VIIRS_SNPP_NRT" if (date.today() - fim).days <= 60 else "VIIRS_SNPP_SP"
+    # FIRMS aceita no máximo 5 dias por query (NRT e SP); paginamos em janelas
+    passo_max = 5
     west = lon - raio_graus
     south = lat - raio_graus
     east = lon + raio_graus
@@ -45,7 +48,7 @@ async def contar_focos_fogo(
             restante = janela_dias
             cursor = fim
             while restante > 0:
-                passo = min(10, restante)
+                passo = min(passo_max, restante)
                 url = (
                     f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
                     f"{config.FIRMS_MAP_KEY}/{source}/{area}/{passo}/"
@@ -59,5 +62,6 @@ async def contar_focos_fogo(
                 cursor = cursor - timedelta(days=passo)
                 restante -= passo
         return total
-    except Exception:
+    except Exception as e:
+        print(f"[firms] {type(e).__name__}: {e}", file=sys.stderr)
         return None
