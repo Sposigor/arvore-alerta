@@ -21,7 +21,9 @@ async def lifespan(app: FastAPI):
         config.DB_PATH = db_path_env
     init_db()
 
-    if config.CDSE_USER and config.CDSE_PASS and config.OPENEO_DISPONIVEL:
+    if not config.CRON_ATIVO:
+        log.info("[CRON] Monitoramento desativado via CRON_ATIVO=false")
+    elif config.CDSE_USER and config.CDSE_PASS and config.OPENEO_DISPONIVEL:
         _scheduler.add_job(
             executar_seed_automatico, "interval", hours=1,
             id="seed_automatico", replace_existing=True,

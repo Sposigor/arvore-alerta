@@ -38,6 +38,7 @@ def status_cron():
             jobs.append({"id": job.id, "proxima_exec": str(job.next_run_time)})
     return {
         "ativo": _scheduler.running,
+        "cron_ativo_env": config.CRON_ATIVO,
         "locais_total": len(config.LOCAIS_MONITORAMENTO),
         "lote_por_hora": config.LOTE_POR_HORA,
         "cursor_atual": _seed_cursor,
