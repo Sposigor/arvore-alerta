@@ -1,9 +1,18 @@
 import asyncio
 import math
+import sys
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from app import config
+
+
+def _flatten(x):
+    if isinstance(x, (list, tuple)):
+        for item in x:
+            yield from _flatten(item)
+    else:
+        yield x
 
 
 def _calcular_radar_sentinel1(
@@ -34,6 +43,15 @@ def _calcular_radar_sentinel1(
         conn = openeo.connect("https://openeo.dataspace.copernicus.eu")
         conn.authenticate_oidc_access_token(token)
 
+        ponto_geojson = {
+            "type": "FeatureCollection",
+            "features": [{
+                "type": "Feature",
+                "geometry": {"type": "Point", "coordinates": [lon, lat]},
+                "properties": {},
+            }],
+        }
+
         def vh_media(ini: datetime, fim: datetime) -> float:
             cube = conn.load_collection(
                 "SENTINEL1_GRD",
@@ -41,11 +59,18 @@ def _calcular_radar_sentinel1(
                 temporal_extent=[ini.strftime("%Y-%m-%d"), fim.strftime("%Y-%m-%d")],
                 bands=["VH"],
             )
-            result = cube.mean_time().execute()
-            val = float(np.nanmean(np.array(result.values, dtype=float)))
-            if np.isnan(val):
+            serie = cube.aggregate_spatial(geometries=ponto_geojson, reducer="mean").execute()
+            vals = []
+            for _, amostras in serie.items():
+                for v in _flatten(amostras):
+                    if v is None:
+                        continue
+                    if isinstance(v, float) and np.isnan(v):
+                        continue
+                    vals.append(float(v))
+            if not vals:
                 raise ValueError("Sem dados Sentinel-1 no período")
-            return val
+            return float(np.mean(vals))
 
         vh_atu = vh_media(ini_atu, fim_atu)
         vh_ref = vh_media(ini_ref, fim_ref)
@@ -53,7 +78,8 @@ def _calcular_radar_sentinel1(
             10 * math.log10(max(vh_ref, 1e-10)) - 10 * math.log10(max(vh_atu, 1e-10)), 2
         )
         return {"vh_ref": round(vh_ref, 6), "vh_atual": round(vh_atu, 6), "vh_delta_db": delta_db}
-    except Exception:
+    except Exception as e:
+        print(f"[radar] {type(e).__name__}: {e}", file=sys.stderr)
         return None
 
 
