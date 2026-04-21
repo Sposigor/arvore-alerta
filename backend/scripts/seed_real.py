@@ -9,13 +9,13 @@ Execute:
 
 Configurações via env:
     API              URL do backend (default http://localhost:8000)
-    TIMESTRE_DESDE   anos atrás para início (default 2)
+    ANOS             anos de histórico (default 2)
     DIAS_REF         janela de dias por snapshot (default 30)
     MAX_LOCAIS       limita nº de locais (debug)
-    PAUSA_S          segundos entre chamadas (default 3)
+    PAUSA_S          segundos entre chamadas (default 20 — evita rate-limit CDSE)
 
 Cada snapshot chama POST /satelite/analisar?data_fim=YYYY-MM-DD.
-Cada chamada leva 60-180 s. Total estimado: 50 × 8 = 400 chamadas (~10-15 h).
+Cada chamada leva 60-180 s. Total estimado: 50 × 8 = 400 chamadas (~12-20 h).
 """
 import os
 import sys
@@ -31,7 +31,7 @@ API = os.getenv("API", "http://localhost:8000").rstrip("/")
 ANOS = int(os.getenv("ANOS", "2"))
 DIAS_REF = int(os.getenv("DIAS_REF", "30"))
 MAX_LOCAIS = int(os.getenv("MAX_LOCAIS", "0"))
-PAUSA_S = float(os.getenv("PAUSA_S", "3"))
+PAUSA_S = float(os.getenv("PAUSA_S", "20"))
 
 
 def datas_trimestrais(anos: int) -> list[date]:
