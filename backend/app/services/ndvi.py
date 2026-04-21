@@ -1,7 +1,8 @@
 import asyncio
 import math
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
+from typing import Optional
 
 from app import config
 
@@ -19,22 +20,32 @@ def calcular_ndvi_simulado(lat: float, lon: float, produto_id: str) -> dict:
     return {"ndvi_ref": ndvi_ref, "ndvi_atual": ndvi_atual, "ndvi_delta": delta}
 
 
-def _calcular_ndvi_openeo(lat: float, lon: float, token: str, dias_ref: int, modo_ref: str = "ano_anterior") -> dict:
+def _calcular_ndvi_openeo(
+    lat: float,
+    lon: float,
+    token: str,
+    dias_ref: int,
+    modo_ref: str = "ano_anterior",
+    data_fim: Optional[date] = None,
+) -> dict:
     """Síncrono — chamar via run_in_executor."""
     import openeo
     import numpy as np
 
-    now = datetime.now(timezone.utc)
+    fim_atu_dt = (
+        datetime.combine(data_fim, datetime.min.time(), tzinfo=timezone.utc)
+        if data_fim else datetime.now(timezone.utc)
+    )
     bbox = {"west": lon - 0.01, "south": lat - 0.01, "east": lon + 0.01, "north": lat + 0.01}
 
-    ini_atu = now - timedelta(days=dias_ref)
-    fim_atu = now
+    ini_atu = fim_atu_dt - timedelta(days=dias_ref)
+    fim_atu = fim_atu_dt
     if modo_ref == "recente":
-        ini_ref = now - timedelta(days=2 * dias_ref)
-        fim_ref = now - timedelta(days=dias_ref)
+        ini_ref = fim_atu_dt - timedelta(days=2 * dias_ref)
+        fim_ref = fim_atu_dt - timedelta(days=dias_ref)
     else:
-        ini_ref = now - timedelta(days=365 + dias_ref)
-        fim_ref = now - timedelta(days=365)
+        ini_ref = fim_atu_dt - timedelta(days=365 + dias_ref)
+        fim_ref = fim_atu_dt - timedelta(days=365)
 
     conn = openeo.connect("https://openeo.dataspace.copernicus.eu")
     conn.authenticate_oidc_access_token(token)
@@ -45,7 +56,7 @@ def _calcular_ndvi_openeo(lat: float, lon: float, token: str, dias_ref: int, mod
             spatial_extent=bbox,
             temporal_extent=[ini.strftime("%Y-%m-%d"), fim.strftime("%Y-%m-%d")],
             bands=["B04", "B08"],
-            max_cloud_cover=20,
+            max_cloud_cover=30,
         )
         nir = cube.band("B08")
         red = cube.band("B04")
@@ -69,9 +80,18 @@ def _calcular_ndvi_openeo(lat: float, lon: float, token: str, dias_ref: int, mod
     }
 
 
-async def calcular_ndvi_real(lat: float, lon: float, token: str, dias_ref: int, modo_ref: str = "ano_anterior") -> dict:
+async def calcular_ndvi_real(
+    lat: float,
+    lon: float,
+    token: str,
+    dias_ref: int,
+    modo_ref: str = "ano_anterior",
+    data_fim: Optional[date] = None,
+) -> dict:
     loop = asyncio.get_running_loop()
-    return await loop.run_in_executor(config.executor, _calcular_ndvi_openeo, lat, lon, token, dias_ref, modo_ref)
+    return await loop.run_in_executor(
+        config.executor, _calcular_ndvi_openeo, lat, lon, token, dias_ref, modo_ref, data_fim
+    )
 
 
 def interpretar_ndvi(ndvi_delta: float, ndvi_atual: float) -> dict:

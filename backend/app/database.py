@@ -49,6 +49,8 @@ def init_db():
         "ALTER TABLE ocorrencias ADD COLUMN modo_ref TEXT DEFAULT 'ano_anterior'",
         "ALTER TABLE ocorrencias ADD COLUMN periodo_atual TEXT",
         "ALTER TABLE ocorrencias ADD COLUMN periodo_ref TEXT",
+        "ALTER TABLE ocorrencias ADD COLUMN focos_fogo INTEGER",
+        "ALTER TABLE ocorrencias ADD COLUMN deter_alertas INTEGER",
     ]:
         try:
             c.execute(col_def)

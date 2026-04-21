@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Query
@@ -7,6 +8,8 @@ from app import config
 from app.database import get_db
 from app.services.alertas import buscar_alertas_inmet
 from app.services.copernicus import buscar_produto_sentinel2, get_cdse_token
+from app.services.deter import contar_alertas_deter
+from app.services.firms import contar_focos_fogo
 from app.services.ndvi import calcular_ndvi_real, calcular_ndvi_simulado, interpretar_ndvi
 from app.services.radar import calcular_radar_real
 
@@ -21,6 +24,7 @@ async def analisar_por_satelite(
     bairro: Optional[str] = Query(None),
     dias_ref: int = Query(30, description="Janela de dias para buscar imagem de referência"),
     modo_ref: str = Query("ano_anterior", description="'ano_anterior' ou 'recente'"),
+    data_fim: Optional[date] = Query(None, description="Data final da janela (YYYY-MM-DD). Default: hoje"),
 ):
     produto_nome = "Simulado (sem credenciais CDSE)"
     produto_id = "simulado"
@@ -43,8 +47,8 @@ async def analisar_por_satelite(
         try:
             token = await get_cdse_token()
             ndvi_data, radar_data = await asyncio.gather(
-                calcular_ndvi_real(latitude, longitude, token, dias_ref, modo_ref),
-                calcular_radar_real(latitude, longitude, token, dias_ref),
+                calcular_ndvi_real(latitude, longitude, token, dias_ref, modo_ref, data_fim),
+                calcular_radar_real(latitude, longitude, token, dias_ref, data_fim),
                 return_exceptions=True,
             )
             if isinstance(ndvi_data, Exception):
@@ -58,7 +62,11 @@ async def analisar_por_satelite(
     if ndvi_data is None:
         ndvi_data = calcular_ndvi_simulado(latitude, longitude, produto_id)
 
-    alertas = await buscar_alertas_inmet(latitude, longitude)
+    alertas_inmet, focos_fogo, deter_alertas = await asyncio.gather(
+        buscar_alertas_inmet(latitude, longitude),
+        contar_focos_fogo(latitude, longitude, data_fim),
+        contar_alertas_deter(latitude, longitude, data_fim),
+    )
     resultado = interpretar_ndvi(ndvi_data["ndvi_delta"], ndvi_data["ndvi_atual"])
 
     ocorrencia_id = None
@@ -69,16 +77,18 @@ async def analisar_por_satelite(
             INSERT INTO ocorrencias
               (latitude, longitude, status, origem, confianca,
                ndvi_atual, ndvi_ref, ndvi_delta, descricao, cidade, bairro,
-               radar_vh_delta, alertas_dc, modo_ref, periodo_atual, periodo_ref)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+               radar_vh_delta, alertas_dc, modo_ref, periodo_atual, periodo_ref,
+               focos_fogo, deter_alertas)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """, (
             latitude, longitude, "confirmado", "satellite",
             resultado["confianca"],
             ndvi_data["ndvi_atual"], ndvi_data["ndvi_ref"], ndvi_data["ndvi_delta"],
             resultado["descricao"], cidade, bairro,
             radar_data["vh_delta_db"] if radar_data else None,
-            alertas, modo_ref,
+            alertas_inmet, modo_ref,
             ndvi_data.get("periodo_atual"), ndvi_data.get("periodo_ref"),
+            focos_fogo, deter_alertas,
         ))
         conn.commit()
         ocorrencia_id = c.lastrowid
@@ -93,11 +103,14 @@ async def analisar_por_satelite(
         "periodo_atual": ndvi_data.get("periodo_atual"),
         "periodo_ref": ndvi_data.get("periodo_ref"),
         "modo_ref": modo_ref,
+        "data_fim": data_fim.isoformat() if data_fim else None,
         "nivel": resultado["nivel"],
         "queda_detectada": resultado["queda_detectada"],
         "confianca": resultado["confianca"],
         "descricao": resultado["descricao"],
         "radar": radar_data,
-        "alertas_dc": alertas,
+        "alertas_dc": alertas_inmet,
+        "focos_fogo": focos_fogo,
+        "deter_alertas": deter_alertas,
         "ocorrencia_id": ocorrencia_id,
     }

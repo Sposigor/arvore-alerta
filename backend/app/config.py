@@ -12,6 +12,8 @@ CDSE_SEARCH_URL = "https://catalogue.dataspace.copernicus.eu/odata/v1/Products"
 
 DB_PATH = os.getenv("DB_PATH", "arvore_alerta.db")
 
+FIRMS_MAP_KEY = os.getenv("FIRMS_MAP_KEY", "")
+
 LOTE_POR_HORA = 8
 
 try:

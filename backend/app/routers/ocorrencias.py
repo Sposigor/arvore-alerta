@@ -13,7 +13,8 @@ router = APIRouter(prefix="/ocorrencias", tags=["ocorrências"])
 
 _COLS = """id, latitude, longitude, status, origem, confianca,
            ndvi_atual, ndvi_ref, ndvi_delta, descricao, criado_em, cidade, bairro,
-           radar_vh_delta, alertas_dc, modo_ref, periodo_atual, periodo_ref"""
+           radar_vh_delta, alertas_dc, modo_ref, periodo_atual, periodo_ref,
+           focos_fogo, deter_alertas"""
 
 
 @router.get("")
