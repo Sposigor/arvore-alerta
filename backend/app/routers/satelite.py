@@ -80,7 +80,7 @@ async def analisar_por_satelite(
         resultado["descricao"] += " Corroborado por: " + ", ".join(fontes_corroborantes) + "."
 
     ocorrencia_id = None
-    if resultado["queda_detectada"]:
+    if resultado["queda_detectada"] and ndvi_data.get("periodo_atual"):
         conn = get_db()
         c = conn.cursor()
         c.execute("""
