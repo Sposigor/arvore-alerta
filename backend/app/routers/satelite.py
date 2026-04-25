@@ -47,15 +47,18 @@ async def analisar_por_satelite(
     if config.CDSE_USER and config.CDSE_PASS and config.OPENEO_DISPONIVEL:
         try:
             token = await get_cdse_token()
-            ndvi_data, radar_data = await asyncio.gather(
-                calcular_ndvi_real(latitude, longitude, token, dias_ref, modo_ref, data_fim),
-                calcular_radar_real(latitude, longitude, token, dias_ref, data_fim),
-                return_exceptions=True,
-            )
-            if isinstance(ndvi_data, Exception):
-                produto_nome += f" [NDVI simulado — {type(ndvi_data).__name__}: {ndvi_data}]"
+            try:
+                ndvi_data = await calcular_ndvi_real(
+                    latitude, longitude, token, dias_ref, modo_ref, data_fim,
+                )
+            except Exception as e:
+                produto_nome += f" [NDVI simulado — {type(e).__name__}: {e}]"
                 ndvi_data = None
-            if isinstance(radar_data, Exception):
+            try:
+                radar_data = await calcular_radar_real(
+                    latitude, longitude, token, dias_ref, data_fim,
+                )
+            except Exception:
                 radar_data = None
         except Exception as e:
             produto_nome += f" [NDVI simulado — {type(e).__name__}: {e}]"
