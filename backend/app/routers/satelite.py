@@ -1,8 +1,11 @@
 import asyncio
+import csv
+import io
 from datetime import date
 from typing import Optional
 
 from fastapi import APIRouter, Query
+from fastapi.responses import StreamingResponse
 
 from app import config
 from app.database import get_db
@@ -15,6 +18,48 @@ from app.services.radar import calcular_radar_real
 from app.services.scoring import fortalecer_confianca
 
 router = APIRouter(prefix="/satelite", tags=["satélite"])
+
+
+@router.get("/ndvi-historico/exportar")
+def exportar_ndvi_historico(formato: str = Query("csv", description="'csv' ou 'json'")):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT * FROM ndvi_historico ORDER BY criado_em DESC")
+    rows = [dict(r) for r in c.fetchall()]
+    conn.close()
+
+    if formato == "json":
+        import json
+        return StreamingResponse(
+            io.BytesIO(json.dumps(rows, ensure_ascii=False).encode("utf-8")),
+            media_type="application/json",
+            headers={"Content-Disposition": "attachment; filename=ndvi_historico.json"},
+        )
+
+    output = io.StringIO()
+    if rows:
+        writer = csv.DictWriter(output, fieldnames=rows[0].keys())
+        writer.writeheader()
+        writer.writerows(rows)
+    return StreamingResponse(
+        io.BytesIO(output.getvalue().encode("utf-8")),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=ndvi_historico.csv"},
+    )
+
+
+@router.get("/ndvi-historico/stats")
+def ndvi_historico_stats():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT COUNT(*) FROM ndvi_historico")
+    total = c.fetchone()[0]
+    c.execute("SELECT COUNT(*) FROM ndvi_historico WHERE queda_detectada=1")
+    quedas = c.fetchone()[0]
+    c.execute("SELECT cidade, COUNT(*) FROM ndvi_historico GROUP BY cidade ORDER BY 2 DESC")
+    por_cidade = [{"cidade": r[0], "n": r[1]} for r in c.fetchall()]
+    conn.close()
+    return {"total": total, "quedas": quedas, "por_cidade": por_cidade}
 
 
 @router.post("/analisar")
@@ -80,6 +125,25 @@ async def analisar_por_satelite(
         resultado["descricao"] += " Corroborado por: " + ", ".join(fontes_corroborantes) + "."
 
     ocorrencia_id = None
+    if ndvi_data.get("periodo_atual"):
+        conn_h = get_db()
+        ch = conn_h.cursor()
+        ch.execute("""
+            INSERT OR IGNORE INTO ndvi_historico
+              (latitude, longitude, cidade, ndvi_atual, ndvi_ref, ndvi_delta,
+               periodo_atual, periodo_ref, modo_ref, radar_vh_delta,
+               focos_fogo, deter_alertas, queda_detectada, nivel)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (
+            latitude, longitude, cidade,
+            ndvi_data["ndvi_atual"], ndvi_data["ndvi_ref"], ndvi_data["ndvi_delta"],
+            ndvi_data["periodo_atual"], ndvi_data["periodo_ref"], modo_ref,
+            radar_delta, focos_fogo, deter_alertas,
+            1 if resultado["queda_detectada"] else 0, resultado["nivel"],
+        ))
+        conn_h.commit()
+        conn_h.close()
+
     if resultado["queda_detectada"] and ndvi_data.get("periodo_atual"):
         conn = get_db()
         c = conn.cursor()

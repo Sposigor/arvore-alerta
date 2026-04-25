@@ -63,6 +63,32 @@ def init_db():
         WHERE periodo_atual IS NOT NULL
     """)
 
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS ndvi_historico (
+            id             INTEGER PRIMARY KEY AUTOINCREMENT,
+            latitude       REAL    NOT NULL,
+            longitude      REAL    NOT NULL,
+            cidade         TEXT,
+            ndvi_atual     REAL    NOT NULL,
+            ndvi_ref       REAL    NOT NULL,
+            ndvi_delta     REAL    NOT NULL,
+            periodo_atual  TEXT    NOT NULL,
+            periodo_ref    TEXT    NOT NULL,
+            modo_ref       TEXT    DEFAULT 'ano_anterior',
+            radar_vh_delta REAL,
+            focos_fogo     INTEGER,
+            deter_alertas  INTEGER,
+            queda_detectada INTEGER DEFAULT 0,
+            nivel          TEXT,
+            criado_em      TEXT    DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
+    c.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_ndvi_historico_unique
+        ON ndvi_historico (latitude, longitude, periodo_atual)
+    """)
+
     conn.commit()
     conn.close()
 
