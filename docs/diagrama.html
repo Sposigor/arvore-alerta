@@ -447,11 +447,49 @@ flowchart LR
   </div>
 </div>
 
+<!-- DIAGRAMA 5: VALIDAÇÃO CIENTÍFICA -->
+<div class="section">
+  <div class="section-label">Diagrama 5</div>
+  <h2>Validação Científica — MODIS / NASA AppEEARS</h2>
+  <p class="section-desc">
+    Pipeline de validação independente: a metodologia do ArvoreAlerta (Sentinel-2 / 10 m) é
+    comparada contra o produto oficial MODIS MOD13Q1.061 (250 m) extraído via NASA AppEEARS
+    para os mesmos 48 locais ao longo de 6,4 anos. Análise estatística pelo método Bland-Altman.
+  </p>
+  <div class="diagram-card">
+    <div class="mermaid">
+flowchart TD
+    LOC["📍 48 locais curados\nLOCAIS_MONITORAMENTO"]
+    LOC --> EXP["exportar_locais_appeears.py\nlocais_appeears.csv"]
+    EXP --> AE["🛰️ NASA AppEEARS\nPoint Sample\nMOD13Q1.061 · 250m · 16d"]
+    AE --> CSV["📥 Bundle .zip\n7.008 amostras\ndez/2019 → abr/2026"]
+
+    CSV --> IMP["importar_modis_appeears.py\nfiltro reliability ≤ 1\n→ modis_local.db\n4.914 amostras válidas"]
+    IMP --> DET["detectar_quedas_modis.py\nΔ vs t-365 ±32d\nthresholds 0.10 / 0.20\n→ 404 quedas em 46/48 locais"]
+
+    AA[("ArvoreAlerta\nndvi_historico\nSentinel-2 / openEO")]
+    AA --> CRZ
+    DET --> CRZ["cruzar_delta_modis.py\nmatching: cidade ±0.5°\n×  data ±32 dias"]
+
+    CRZ --> BA["plot_bland_altman.py\nbland_altman_delta.png"]
+    BA --> RES["📊 Resultados (n=43)\nViés: +0.012\nDP: 0.091\nLoA: [-0.167, +0.190]\n90.7% dentro dos LoA"]
+
+    RES --> CONC["✅ Concordância validada\nsem viés sistemático\ncritério Bland & Altman 1986"]
+
+    style AE fill:#1e2530,stroke:#52b788,color:#e6edf3
+    style DET fill:#1e2530,stroke:#e76f00,color:#e6edf3
+    style BA fill:#1e2530,stroke:#52b788,color:#e6edf3
+    style CONC fill:#2d6a4f,stroke:#52b788,color:#fff
+    </div>
+  </div>
+</div>
+
 <footer>
   <p>
     <b>ArvoreAlerta v2.0</b> — TCC · Dados: <b>Copernicus CDSE</b> (ESA/União Europeia) ·
     Satélites: <b>Sentinel-2 L2A</b> e <b>Sentinel-1 GRD</b> ·
-    Alertas: <b>INMET</b> · Mapas: <b>OpenStreetMap</b>
+    Alertas: <b>INMET</b> · Mapas: <b>OpenStreetMap</b> ·
+    Validação: <b>NASA AppEEARS</b> (MODIS MOD13Q1)
   </p>
   <p style="margin-top:8px;font-size:12px;">
     Abrir no navegador para visualizar · Ctrl+P para exportar como PDF

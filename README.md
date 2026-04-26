@@ -128,8 +128,14 @@ projeto_tcc/
 │   │       ├── deter.py         # INPE DETER — alertas de desmatamento (WFS)
 │   │       └── scoring.py       # Fusão multi-sinal da confiança
 │   └── scripts/
-│       ├── seed.py              # Popula banco com dados simulados (demo)
-│       └── seed_real.py         # Seed histórico trimestral (2 anos × 50 locais)
+│       ├── seed.py                          # Popula banco com dados simulados (demo)
+│       ├── seed_real.py                     # Seed histórico trimestral (2 anos × 48 locais)
+│       ├── exportar_locais_appeears.py      # Gera CSV no formato NASA AppEEARS
+│       ├── importar_modis_appeears.py       # Ingere MODIS MOD13Q1 em SQLite local
+│       ├── detectar_quedas_modis.py         # Aplica algoritmo do AA sobre série MODIS
+│       ├── cruzar_arvorealerta_modis.py     # Comparação NDVI absoluto AA × MODIS
+│       ├── cruzar_delta_modis.py            # Comparação Δ-vs-Δ (validação principal)
+│       └── plot_bland_altman.py             # Análise Bland-Altman (concordância)
 ├── frontend/
 │   └── index.html               # Interface web (mapa + análise NDVI)
 ├── docs/
@@ -246,7 +252,8 @@ Variáveis de ambiente suportadas:
 | `ANOS` | `2` | Horizonte retroativo em anos |
 | `DIAS_REF` | `30` | Janela de dias por snapshot NDVI |
 | `MAX_LOCAIS` | `0` | Limita nº de locais (debug) |
-| `PAUSA_S` | `3` | Pausa entre chamadas (s) |
+| `PAUSA_S` | `20` | Pausa entre chamadas (s) — evita rate-limit CDSE |
+| `CRON_ATIVO` | `true` | Liga/desliga o scheduler horário (`false` durante seeds longos) |
 
 O UNIQUE index em `(lat, lon, periodo_atual)` garante idempotência — relançar o seed não duplica ocorrências.
 
@@ -382,6 +389,8 @@ Separar a API do frontend permite que qualquer outra interface (app mobile, pain
 | `GET` | `/ocorrencias` | `?dias=30&limite=100` | Lista ocorrências filtradas por período |
 | `GET` | `/ocorrencias/exportar` | `?formato=geojson\|csv&dias=30` | Exporta em GeoJSON ou CSV |
 | `DELETE` | `/ocorrencias/{id}` | — | Remove uma ocorrência |
+| `GET` | `/satelite/ndvi-historico/exportar` | `?formato=csv\|json` | Exporta toda série NDVI real (incluindo "normais") |
+| `GET` | `/satelite/ndvi-historico/stats` | — | Total / quedas / contagem por cidade |
 
 #### Estatísticas e Monitoramento
 
@@ -561,6 +570,73 @@ Com o deploy ativo, o backend processa **8 locais/hora** em rotação contínua:
 
 ---
 
+## Validação Científica — MODIS (NASA AppEEARS)
+
+A metodologia do ArvoreAlerta foi validada contra o produto oficial **MODIS MOD13Q1.061** (Terra Vegetation Indices, 250 m, composição de 16 dias) extraído via [NASA AppEEARS](https://appeears.earthdatacloud.nasa.gov) para os mesmos 48 locais monitorados, cobrindo **dez/2019 a abr/2026** (~6,4 anos).
+
+### Pipeline de validação
+
+```
+AppEEARS (Point Sample)        →   tcc-univesp-250426-MOD13Q1-061-results.csv  (7.008 linhas)
+importar_modis_appeears.py     →   modis_local.db  (4.914 amostras com reliability ≤ 1)
+detectar_quedas_modis.py       →   quedas_modis.csv  (4.076 eventos · 404 quedas detectadas)
+cruzar_delta_modis.py          →   comparacao_delta_aa_vs_modis.csv  (Δ-vs-Δ)
+plot_bland_altman.py           →   bland_altman_delta.png
+```
+
+### Resultados — análise de concordância Bland-Altman (Δ NDVI)
+
+Comparação entre Δ NDVI calculado pelo ArvoreAlerta (Sentinel-2 / openEO) e Δ NDVI calculado pelo mesmo algoritmo aplicado à série MODIS:
+
+| Métrica | Valor |
+|---|---|
+| n (matches) | 43 |
+| Viés (média da diferença) | **+0.012** (sem viés sistemático) |
+| Desvio-padrão da diferença | 0.091 |
+| Limites de concordância (95%) | [−0.167; +0.190] |
+| Pontos dentro dos LoA | **90.7%** (esperado teórico: 95%) |
+
+**Interpretação:** o viés praticamente nulo demonstra que o ArvoreAlerta **não super- nem subestima sistematicamente** o sinal de variação NDVI em relação ao produto oficial MODIS. A concordância de 90,7% dentro dos limites validam a metodologia do TCC segundo o critério estatístico clássico de Bland & Altman (1986) para comparação de métodos de medida.
+
+### Hotspots de desmatamento detectados pelo MODIS
+
+Aplicando o mesmo algoritmo do ArvoreAlerta (Δ ≥ 0,10) sobre toda a série MODIS de 6 anos, **404 quedas** foram detectadas em 46 dos 48 locais. As 7 cidades com maior número de quedas correspondem exatamente a hotspots clássicos do desmatamento brasileiro:
+
+| Cidade | Quedas | Bioma |
+|---|---|---|
+| Altamira-PA | 26 | Amazônia (BR-163) |
+| Novo Progresso-PA | 25 | Amazônia (arco do desmatamento) |
+| Humaitá-AM | 24 | Amazônia |
+| Barreiras-BA | 23 | Cerrado / MATOPIBA |
+| Lucas do Rio Verde-MT | 22 | Cerrado |
+| Juína-MT | 20 | Amazônia / Cerrado |
+| São Félix do Xingu-PA | 17 | Amazônia (pecuária) |
+
+### Reproduzindo a validação
+
+```bash
+cd backend
+
+# 1. Gerar CSV de pontos no formato AppEEARS
+python scripts/exportar_locais_appeears.py
+# → scripts/locais_appeears.csv (48 pontos)
+
+# 2. Submeter manualmente em https://appeears.earthdatacloud.nasa.gov
+#    Extract → Point Sample → Upload locais_appeears.csv
+#    Produto: MOD13Q1.061  |  Layers: NDVI + pixel_reliability
+#    Date Range: cobertura desejada (mínimo 2 anos para gerar Δ)
+
+# 3. Após receber o e-mail, baixar e importar
+python scripts/importar_modis_appeears.py /caminho/results.csv
+
+# 4. Detectar quedas + cruzar + plotar
+python scripts/detectar_quedas_modis.py
+python scripts/cruzar_delta_modis.py
+python scripts/plot_bland_altman.py
+```
+
+---
+
 ## Roadmap
 
 - [x] Cálculo de NDVI com dados reais via openEO
@@ -579,5 +655,7 @@ Com o deploy ativo, o backend processa **8 locais/hora** em rotação contínua:
 - [x] Fusão multi-sinal da confiança (NDVI + FIRMS + DETER + radar)
 - [x] Varredura histórica com amostragem trimestral (2 anos × 50 locais)
 - [x] Deduplicação via UNIQUE index em (lat, lon, periodo_atual)
+- [x] Persistência de toda série NDVI real em `ndvi_historico` (não só quedas)
+- [x] Validação contra MODIS MOD13Q1 / NASA AppEEARS (Bland-Altman, viés +0.012)
 - [ ] Notificações push por área de interesse
 - [ ] App mobile (PWA)

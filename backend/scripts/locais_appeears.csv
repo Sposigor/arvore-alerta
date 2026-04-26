@@ -1,0 +1,49 @@
+ID,Category,Latitude,Longitude
+loc_001,São Paulo,-23.55,-46.633
+loc_002,Rio de Janeiro,-22.906,-43.173
+loc_003,Belo Horizonte,-19.917,-43.934
+loc_004,Brasília,-15.779,-47.929
+loc_005,Salvador,-12.971,-38.511
+loc_006,Recife,-8.054,-34.881
+loc_007,Fortaleza,-3.717,-38.543
+loc_008,Manaus,-3.119,-60.022
+loc_009,Belém,-1.456,-48.502
+loc_010,Curitiba,-25.429,-49.271
+loc_011,Porto Alegre,-30.033,-51.23
+loc_012,São Luís,-2.529,-44.303
+loc_013,Aracaju,-10.912,-37.073
+loc_014,Porto Velho,-8.761,-63.9
+loc_015,Rio Branco,-9.975,-67.824
+loc_016,Altamira — PA,-7.53,-55.03
+loc_017,Novo Progresso — PA,-7.093,-55.11
+loc_018,São Félix do Xingu — PA,-6.638,-51.955
+loc_019,Rurópolis — PA,-3.38,-53.05
+loc_020,Trairão — PA,-5.45,-55.43
+loc_021,Placas — PA,-4.81,-53.77
+loc_022,Itaituba — PA,-6.2,-55.53
+loc_023,Colniza — MT,-9.977,-58.2
+loc_024,Alta Floresta — MT,-10.37,-58.02
+loc_025,Sorriso — MT,-11.55,-55.45
+loc_026,Lucas do Rio Verde — MT,-13.01,-55.25
+loc_027,Sinop — MT,-11.86,-55.76
+loc_028,Juína — MT,-14.66,-59.32
+loc_029,Ji-Paraná — RO,-10.878,-61.945
+loc_030,Cacoal — RO,-11.73,-61.36
+loc_031,Machadinho d'Oeste — RO,-9.165,-62.856
+loc_032,Presidente Médici — RO,-11.437,-61.832
+loc_033,Lábrea — AM,-6.05,-67.95
+loc_034,Humaitá — AM,-7.28,-64.89
+loc_035,Novo Aripuanã — AM,-5.826,-61.274
+loc_036,Borba — AM,-4.87,-60.03
+loc_037,Brasileia — AC,-10.003,-67.807
+loc_038,Cruzeiro do Sul — AC,-7.728,-72.664
+loc_039,Feijó — AC,-8.16,-70.77
+loc_040,Barreiras — BA,-11.858,-45.838
+loc_041,São Desidério — BA,-12.15,-45.005
+loc_042,Araguaína — TO,-7.216,-48.203
+loc_043,Palmas — TO,-10.175,-48.335
+loc_044,Imperatriz — MA,-6.755,-47.459
+loc_045,Barra do Corda — MA,-4.867,-44.886
+loc_046,Vitória — ES,-20.27,-40.308
+loc_047,Santos — SP,-23.96,-46.34
+loc_048,Joinville — SC,-26.305,-48.849
