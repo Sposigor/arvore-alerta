@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app import config
 from app.database import init_db
-from app.routers import ocorrencias, satelite, sistema, usuario
+from app.routers import admin, ocorrencias, satelite, sistema, usuario
 from app.scheduler import _scheduler, executar_seed_automatico
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -55,3 +55,4 @@ app.include_router(satelite.router)
 app.include_router(usuario.router)
 app.include_router(ocorrencias.router)
 app.include_router(sistema.router)
+app.include_router(admin.router)

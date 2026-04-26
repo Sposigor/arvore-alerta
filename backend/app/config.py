@@ -16,6 +16,8 @@ FIRMS_MAP_KEY = os.getenv("FIRMS_MAP_KEY", "")
 
 CRON_ATIVO = os.getenv("CRON_ATIVO", "true").lower() not in ("0", "false", "no")
 
+SEED_TOKEN = os.getenv("SEED_TOKEN", "")
+
 LOTE_POR_HORA = 8
 
 try:
