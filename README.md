@@ -141,12 +141,10 @@ projeto_tcc/
 │   │       ├── deter.py         # INPE DETER — alertas de desmatamento (WFS)
 │   │       └── scoring.py       # Fusão multi-sinal da confiança
 │   └── scripts/
-│       ├── seed.py                          # Popula banco com dados simulados (demo)
 │       ├── seed_real.py                     # Seed histórico trimestral (2 anos × 48 locais)
 │       ├── exportar_locais_appeears.py      # Gera CSV no formato NASA AppEEARS
 │       ├── importar_modis_appeears.py       # Ingere MODIS MOD13Q1 em SQLite local
 │       ├── detectar_quedas_modis.py         # Aplica algoritmo do AA sobre série MODIS
-│       ├── cruzar_arvorealerta_modis.py     # Comparação NDVI absoluto AA × MODIS
 │       ├── cruzar_delta_modis.py            # Comparação Δ-vs-Δ (validação principal)
 │       └── plot_bland_altman.py             # Análise Bland-Altman (concordância)
 ├── frontend/
@@ -240,10 +238,13 @@ Acesse: http://localhost:3000
 
 ### 7. Popular o banco de dados
 
-**Dados simulados** (rápido, sem conta Copernicus):
+**Apresentação rápida** (dados sintéticos, controlados via API):
 ```bash
-cd backend
-python scripts/seed.py
+# Defina SEED_TOKEN no .env (qualquer string)
+curl -X POST "http://localhost:8000/admin/seed-fake?token=SEU_TOKEN&n=80&dias=180"
+
+# Para limpar:
+curl -X DELETE "http://localhost:8000/admin/seed-fake?token=SEU_TOKEN"
 ```
 
 **Seed histórico real** (requer `.env` com CDSE configurado):
@@ -255,7 +256,7 @@ python backend/scripts/seed_real.py
 API=https://arvore-alerta-production.up.railway.app python backend/scripts/seed_real.py
 ```
 
-O script varre os **50 locais curados** (capitais + hotspots de desmatamento da Amazônia, Cerrado, Mata Atlântica) em **amostragem trimestral dos últimos 2 anos** (50 × 8 = 400 análises). Cada análise consome ~2-3 créditos openEO e leva 60-180 s — o seed completo leva ~10-15 h e ~1000-1500 créditos (dentro da quota gratuita).
+O script varre os **48 locais curados** (capitais + hotspots de desmatamento da Amazônia, Cerrado, Mata Atlântica) em **amostragem trimestral dos últimos 2 anos** (48 × 8 = 384 análises). Cada análise consome ~2-3 créditos openEO e leva 60-180 s — o seed completo leva ~10-15 h e ~1000-1500 créditos (dentro da quota gratuita).
 
 Variáveis de ambiente suportadas:
 
@@ -405,6 +406,15 @@ Separar a API do frontend permite que qualquer outra interface (app mobile, pain
 | `GET` | `/satelite/ndvi-historico/exportar` | `?formato=csv\|json` | Exporta toda série NDVI real (incluindo "normais") |
 | `GET` | `/satelite/ndvi-historico/stats` | — | Total / quedas / contagem por cidade |
 
+#### Administração (apresentação)
+
+Endpoints protegidos por env var `SEED_TOKEN` para popular o mapa rapidamente em demonstrações sem consumir quota Copernicus:
+
+| Método | Rota | Parâmetros | Descrição |
+|--------|------|------------|-----------|
+| `POST` | `/admin/seed-fake` | `?token=X&n=80&dias=180` | Gera N ocorrências simuladas plausíveis (NDVI, FIRMS, DETER, radar) com `origem='seed_fake'` |
+| `DELETE` | `/admin/seed-fake` | `?token=X` | Remove todas as ocorrências fake (rollback completo) |
+
 #### Estatísticas e Monitoramento
 
 | Método | Rota | Descrição |
@@ -432,15 +442,7 @@ Separar a API do frontend permite que qualquer outra interface (app mobile, pain
 
 O backend inclui um scheduler (APScheduler) que inicia automaticamente com o servidor e processa locais em rotação contínua sem intervenção manual.
 
-**50 locais monitorados:**
-
-| Categoria | Quantidade | Exemplos |
-|-----------|-----------|---------|
-| Capitais e metrópoles | 15 | São Paulo, Manaus, Belém, Brasília |
-| Hotspots Amazônia (PRODES/INPE) | 22 | Altamira-PA, Colniza-MT, Ji-Paraná-RO, Lábrea-AM |
-| Cerrado / Matopiba | 6 | Barreiras-BA, Araguaína-TO, Imperatriz-MA |
-| Mata Atlântica | 4 | Santos-SP, Vitória-ES, Joinville-SC |
-| Acre / Amazônia Sul | 3 | Cruzeiro do Sul, Lábrea, Humaitá |
+**48 locais monitorados** (capitais + hotspots de desmatamento Amazônia/Cerrado + Mata Atlântica), processados em rotação contínua de 8 locais/hora — ciclo completo a cada ~6 horas.
 
 **Orçamento de créditos openEO:**
 
@@ -458,10 +460,11 @@ O backend inclui um scheduler (APScheduler) que inicia automaticamente com o ser
 
 | Modo | Configuração | NDVI | Scheduler | Uso |
 |------|-------------|------|-----------|-----|
-| **Simulado** | Sem `.env` | Aleatório | Inativo | Testes, demo de interface |
-| **Real** | Com `.env` + openEO | Sentinel-2 real | Ativo | Produção, TCC com dados reais |
+| **Simulado (sem credenciais)** | Sem `.env` | Aleatório no endpoint `/satelite/analisar` | Inativo | Testes locais sem conta Copernicus |
+| **Real** | Com `.env` + openEO | Sentinel-2 real (openEO) | Ativo | Produção, TCC com dados reais |
+| **Apresentação (seed fake)** | `SEED_TOKEN` definido | Real + ocorrências sintéticas via `/admin/seed-fake` | — | Demo com mapa cheio sem consumir Copernicus |
 
-O sistema detecta automaticamente qual modo usar. Se as credenciais estiverem configuradas e o pacote `openeo` instalado, usa dados reais com fallback automático para simulação em caso de erro (ex: nuvens, sem imagens no período).
+O sistema detecta automaticamente qual modo usar para `/satelite/analisar`. Se as credenciais estiverem configuradas e o pacote `openeo` instalado, usa dados reais com fallback automático para simulação em caso de erro (ex: nuvens, sem imagens no período).
 
 ---
 
@@ -577,7 +580,7 @@ O workflow `.github/workflows/claude.yml` permite mencionar `@claude` em qualque
 ### Monitoramento automático em produção
 
 Com o deploy ativo, o backend processa **8 locais/hora** em rotação contínua:
-- Cobertura completa dos 50 locais a cada ~6 horas
+- Cobertura completa dos 48 locais a cada ~6 horas
 - Estimativa de consumo: ~11.500 créditos openEO/mês (dentro do limite gratuito de 15.000)
 - Endpoint de status: `GET /cron/status`
 
@@ -661,12 +664,12 @@ python scripts/plot_bland_altman.py
 - [x] Comparação ano a ano (mesmo período safra anterior)
 - [x] Integração com API de alertas da Defesa Civil (INMET)
 - [x] Análise com Radar Sentinel-1 (ignora cobertura de nuvens)
-- [x] Monitoramento automático horário (50 locais, APScheduler)
+- [x] Monitoramento automático horário (48 locais, APScheduler)
 - [x] Deploy Railway + GitHub Pages + GitHub Actions
 - [x] Integração NASA FIRMS (focos de queimada VIIRS)
 - [x] Integração INPE DETER (alertas oficiais de desmatamento)
 - [x] Fusão multi-sinal da confiança (NDVI + FIRMS + DETER + radar)
-- [x] Varredura histórica com amostragem trimestral (2 anos × 50 locais)
+- [x] Varredura histórica com amostragem trimestral (2 anos × 48 locais)
 - [x] Deduplicação via UNIQUE index em (lat, lon, periodo_atual)
 - [x] Persistência de toda série NDVI real em `ndvi_historico` (não só quedas)
 - [x] Validação contra MODIS MOD13Q1 / NASA AppEEARS (Bland-Altman, viés +0.012)
