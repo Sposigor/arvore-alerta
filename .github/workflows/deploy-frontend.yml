@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - "frontend/**"
+      - "docs/**"
       - ".github/workflows/deploy-frontend.yml"
   workflow_dispatch:
 
@@ -35,6 +36,9 @@ jobs:
         run: |
           sed -i "s|http://localhost:8000|${{ vars.BACKEND_URL }}|g" frontend/index.html
           echo "✓ API URL definida para: ${{ vars.BACKEND_URL }}"
+
+      - name: Copiar docs/ para o site
+        run: cp -r docs/. frontend/
 
       - name: Configurar GitHub Pages
         uses: actions/configure-pages@v4
