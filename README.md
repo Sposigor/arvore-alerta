@@ -4,6 +4,19 @@ Sistema de detecção e mapeamento de quedas de árvores utilizando imagens de s
 
 **Stack:** FastAPI · SQLite · Leaflet.js · openEO · Copernicus CDSE (Sentinel-2 L2A · Sentinel-1 GRD) · APScheduler · INMET · NASA FIRMS · INPE DETER/TerraBrasilis
 
+## Links úteis
+
+| Recurso | URL |
+|---|---|
+| 🗺️ **Aplicação (frontend)** | https://sposigor.github.io/arvore-alerta/ |
+| 📊 **Diagramas de arquitetura** | https://sposigor.github.io/arvore-alerta/diagrama.html |
+| ⚙️ **API (Swagger / docs)** | https://arvore-alerta-production.up.railway.app/docs |
+| 📈 **Estatísticas em tempo real** | https://arvore-alerta-production.up.railway.app/stats |
+| ⏱️ **Status do scheduler** | https://arvore-alerta-production.up.railway.app/cron/status |
+| 📥 **Export NDVI histórico (CSV)** | https://arvore-alerta-production.up.railway.app/satelite/ndvi-historico/exportar?formato=csv |
+| 📥 **Export ocorrências (CSV)** | https://arvore-alerta-production.up.railway.app/ocorrencias/exportar?formato=csv |
+| 📊 **Plot Bland-Altman (validação)** | [backend/scripts/bland_altman_delta.png](backend/scripts/bland_altman_delta.png) |
+
 ---
 
 ## Sobre o Projeto
